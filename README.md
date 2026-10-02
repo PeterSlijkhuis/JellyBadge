@@ -13,6 +13,8 @@
 
 JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos** and **★ 8.4** to your movie and series posters. The badges are drawn into the poster image itself, so they show up everywhere: the web app, phones, tablets and native TV apps such as Wholphin on Android TV. No themes, no CSS, no JavaScript, nothing to install on your devices.
 
+**Know Kometa overlays from Plex?** JellyBadge brings the same idea to Jellyfin as a regular plugin: resolution, HDR, codec, audio and rating overlays on your posters, set up from the dashboard with a live preview. No scripts, no config files, no cron jobs.
+
 <table>
   <tr>
     <th>Before</th>
@@ -145,6 +147,12 @@ If you replaced a poster after it was badged, your newer poster is kept.
 Uninstalling JellyBadge does the same before it goes, so no badged poster is left behind.
 
 ## FAQ
+
+<details>
+<summary><b>How is this different from Kometa or Plex Meta Manager overlays?</b></summary>
+
+Kometa is a separate script you run on a schedule, built around Plex. JellyBadge is a Jellyfin plugin: you install it from the plugin catalog, set it up on its settings page with a live preview, and it badges new items by itself as they arrive. One button puts all original posters back.
+</details>
 
 <details>
 <summary><b>Does JellyBadge change files in my media folders?</b></summary>
