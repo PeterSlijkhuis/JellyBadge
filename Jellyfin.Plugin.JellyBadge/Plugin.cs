@@ -32,6 +32,9 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override string Name => "JellyBadge";
 
     /// <inheritdoc />
+    public override string Description => "Quality and rating badges on your posters, for every client.";
+
+    /// <inheritdoc />
     public override Guid Id => Guid.Parse("9d421997-eadd-4434-a275-a4e85fb3771c");
 
     /// <summary>

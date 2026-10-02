@@ -51,7 +51,7 @@ jobs:
         run: |
           TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           ZIP="jellybadge_${VERSION}.zip"
-          dotnet publish Jellyfin.Plugin.JellyBadge -c Release -o out -p:Version="$VERSION"
+          dotnet publish Jellyfin.Plugin.JellyBadge -c Release -o out -p:Version="$VERSION" -p:AssemblyVersion="$VERSION" -p:FileVersion="$VERSION"
           # meta.json makes the zip work as a standalone install too: unzip into plugins/JellyBadge and restart.
           jq --arg v "$VERSION" --arg ts "$TS" \
             '{guid, name, overview, description, owner, category, targetAbi, version: $v, changelog: "Bug fixes and improvements.", timestamp: $ts, status: "Active", autoUpdate: true, assemblies: []}' \
