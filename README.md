@@ -27,12 +27,23 @@ Jellyfin server 12.1 or newer.
 
 ## Install
 
-1. In Jellyfin go to **Dashboard > Plugins > Repositories** and add:
+### From the plugin repository (recommended)
+
+1. In Jellyfin go to **Dashboard > Plugins > Repositories**, click **+** and add:
    ```
-   https://raw.githubusercontent.com/PeterSlijkhuis/JellyBadge/main/manifest.json
+   https://github.com/PeterSlijkhuis/JellyBadge/releases/latest/download/manifest.json
    ```
-2. Go to **Catalog**, install **JellyBadge** and restart the server.
-3. Open **Dashboard > Plugins > JellyBadge**, pick your badges and layout, check a few posters with **Show preview**, then tick **Enable badges** and click **Save and apply to library now**.
+2. Go to **Catalog**, install **JellyBadge** and restart the server. Updates show up in the same place.
+
+### Manual install
+
+1. Download `jellybadge_x.y.z.0.zip` from the [latest release](https://github.com/PeterSlijkhuis/JellyBadge/releases/latest).
+2. Unzip it into a `JellyBadge` folder inside your server's `plugins` directory (for Docker usually `/config/plugins/JellyBadge`).
+3. Restart the server.
+
+### First run
+
+Open **Dashboard > Plugins > JellyBadge**, pick your badges and layout, check a few posters with **Show preview**, then tick **Enable badges** and click **Save and apply to library now**.
 
 From then on new and updated items are badged automatically, and a scheduled task checks the whole library once a day.
 
@@ -67,7 +78,7 @@ Copy `out/Jellyfin.Plugin.JellyBadge.dll` into a `JellyBadge` folder in your ser
 
 ## Release
 
-Push a tag such as `v1.0.0`. The release workflow runs the tests, publishes a GitHub release with the plugin zip and adds the version to `manifest.json` on `main`.
+Push a tag such as `v1.0.0`. The release workflow runs the tests and publishes a GitHub release with the plugin zip and an updated `manifest.json`, which is what the repository URL above points to. Plugin metadata lives in `.github/plugin.json`.
 
 ## License
 
