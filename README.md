@@ -130,7 +130,7 @@ JellyBadge is off after installing, so nothing changes until you switch it on. P
 
 ## Removing badges
 
-Open **Dashboard > Plugins > JellyBadge** and click **Restore originals**. This:
+Switch JellyBadge **Off** at the top of its settings page and save, or click **Restore originals**. Both:
 
 1. switches JellyBadge off, so nothing gets badged again,
 2. puts every original poster back,
@@ -138,7 +138,7 @@ Open **Dashboard > Plugins > JellyBadge** and click **Restore originals**. This:
 
 If you replaced a poster after it was badged, your newer poster is kept.
 
-> **Uninstalling?** Click **Restore originals** first. Uninstalling alone leaves the badged posters in place.
+Uninstalling JellyBadge does the same before it goes, so no badged poster is left behind.
 
 ## FAQ
 
@@ -199,7 +199,7 @@ dotnet publish Jellyfin.Plugin.JellyBadge -c Release -o out
 
 - Built on the official [jellyfin-plugin-template](https://github.com/jellyfin/jellyfin-plugin-template), targeting .NET 10 and Jellyfin 12.1.
 - Badge detection is plain logic in `Detection/BadgeDetector.cs`, covered by unit tests with stream fixtures in `Jellyfin.Plugin.JellyBadge.Tests/Fixtures`.
-- **Releases are automatic.** Every push to `main` builds, tests and publishes a release with the plugin zip and `manifest.json`. The version starts from `version` in `.github/plugin.json` and counts the last number up (1.0.0, 1.0.1, 1.0.2) until you change it by hand. You can also start a release from **Actions > Release > Run workflow**.
+- **Releasing.** Open **Actions > Release > Run workflow**. It builds, tests and publishes a release with the plugin zip and `manifest.json`. The version starts from `version` in `.github/plugin.json` and counts the last number up (1.0.0, 1.0.1, 1.0.2) until you change it by hand.
 
 ## Credits
 

@@ -1,15 +1,12 @@
 name: Release
 
-# Every push to main publishes a release with the plugin zip and manifest.json, so Jellyfin can install from:
+# Run by hand from Actions > Release > Run workflow. Publishes a release with the plugin zip and manifest.json, so Jellyfin can install from:
 #   https://github.com/<owner>/<repo>/releases/latest/download/manifest.json
 #
 # Versioning: "version" in .github/plugin.json is the version you set by hand. If no release has it yet,
 # that exact version is released. After that each release counts the last number up (1.0.0, 1.0.1, 1.0.2)
 # until you set a new version by hand.
 on:
-  push:
-    branches: [main]
-    paths-ignore: ['**.md', 'docs/*.jpg', 'docs/banner.png', 'docs/settings.png']
   workflow_dispatch:
 
 permissions:

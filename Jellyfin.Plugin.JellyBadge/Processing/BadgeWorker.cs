@@ -5,7 +5,9 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
+using Jellyfin.Plugin.JellyBadge.Configuration;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Plugins;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -41,6 +43,7 @@ public sealed class BadgeWorker : BackgroundService
     {
         _libraryManager.ItemAdded += OnItemChanged;
         _libraryManager.ItemUpdated += OnItemChanged;
+        Plugin.Instance!.ConfigurationChanged += OnConfigurationChanged;
         return base.StartAsync(cancellationToken);
     }
 
@@ -49,6 +52,7 @@ public sealed class BadgeWorker : BackgroundService
     {
         _libraryManager.ItemAdded -= OnItemChanged;
         _libraryManager.ItemUpdated -= OnItemChanged;
+        Plugin.Instance!.ConfigurationChanged -= OnConfigurationChanged;
         _queue.Writer.TryComplete();
         return base.StopAsync(cancellationToken);
     }
@@ -74,6 +78,25 @@ public sealed class BadgeWorker : BackgroundService
             {
                 _logger.LogError(ex, "Failed to badge {Item}", item.Name);
             }
+        }
+    }
+
+    // Switching JellyBadge off in the settings puts the originals back.
+    private void OnConfigurationChanged(object? sender, BasePluginConfiguration config)
+    {
+        if (config is PluginConfiguration { Enabled: false })
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _processor.RestoreAllAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to restore original posters");
+                }
+            });
         }
     }
 

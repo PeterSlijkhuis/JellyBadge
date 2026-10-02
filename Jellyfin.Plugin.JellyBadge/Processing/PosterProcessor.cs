@@ -38,6 +38,7 @@ public sealed class PosterProcessor : IDisposable
     private readonly IFileSystem _fileSystem;
     private readonly ILogger<PosterProcessor> _logger;
     private readonly SemaphoreSlim _gate;
+    private readonly int _slots;
     private readonly ConcurrentDictionary<Guid, byte> _busy = new();
     private readonly ConcurrentDictionary<Guid, (string Path, DateTime Modified)> _written = new();
 
@@ -58,8 +59,15 @@ public sealed class PosterProcessor : IDisposable
         _logger = logger;
 
         // ponytail: limit is read once at startup, a change needs a server restart.
-        _gate = new SemaphoreSlim(Math.Max(1, Plugin.Instance?.Configuration.MaxConcurrency ?? 2));
+        _slots = Math.Max(1, Plugin.Instance?.Configuration.MaxConcurrency ?? 2);
+        _gate = new SemaphoreSlim(_slots);
+        Current = this;
     }
+
+    /// <summary>
+    /// Gets the running instance, for code outside dependency injection (uninstalling).
+    /// </summary>
+    internal static PosterProcessor? Current { get; private set; }
 
     private static PluginConfiguration Config => Plugin.Instance!.Configuration;
 
@@ -109,6 +117,12 @@ public sealed class PosterProcessor : IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (!Config.Enabled)
+            {
+                // Switched off while we waited: a restore is running or about to.
+                return;
+            }
+
             if (IsCandidate(item))
             {
                 await ProcessCoreAsync(item, cancellationToken).ConfigureAwait(false);
@@ -152,11 +166,36 @@ public sealed class PosterProcessor : IDisposable
     }
 
     /// <summary>
-    /// Puts every original poster back and deletes all plugin data.
+    /// Turns badging off, puts every original poster back and deletes all plugin data.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>How many posters were restored.</returns>
     public async Task<int> RestoreAllAsync(CancellationToken cancellationToken)
+    {
+        // Off first so no event re-badges a poster we just restored.
+        if (Config.Enabled)
+        {
+            Config.Enabled = false;
+            Plugin.Instance!.SaveConfiguration();
+        }
+
+        // Take every slot, so no poster is being badged while we restore.
+        for (var i = 0; i < _slots; i++)
+        {
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        try
+        {
+            return await RestoreAllCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release(_slots);
+        }
+    }
+
+    private async Task<int> RestoreAllCoreAsync(CancellationToken cancellationToken)
     {
         var restored = 0;
         var stateDir = Path.Combine(DataDir, "state");
