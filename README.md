@@ -78,7 +78,7 @@ Copy `out/Jellyfin.Plugin.JellyBadge.dll` into a `JellyBadge` folder in your ser
 
 ## Release
 
-Push a tag such as `v1.0.0`. The release workflow runs the tests and publishes a GitHub release with the plugin zip and an updated `manifest.json`, which is what the repository URL above points to. Plugin metadata lives in `.github/plugin.json`.
+On GitHub, go to **Releases > Draft a new release**, create a tag such as `v1.0.0` and publish. The release workflow runs the tests and attaches the plugin zip and an updated `manifest.json` to the release, which is what the repository URL above points to. Plugin metadata lives in `.github/plugin.json`.
 
 ## License
 
