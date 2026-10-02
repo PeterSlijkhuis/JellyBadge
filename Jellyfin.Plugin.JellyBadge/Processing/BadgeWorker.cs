@@ -108,7 +108,7 @@ public sealed class BadgeWorker : BackgroundService
         }
 
         // Our own poster save fires ItemUpdated too: drop it here, the hash check catches anything else.
-        if (e.Item is Movie or Series or Episode && !_processor.IsOwnWrite(e.Item))
+        if (e.Item is Movie or Series or Episode or BoxSet && !_processor.IsOwnWrite(e.Item))
         {
             Enqueue(e.Item.Id);
         }

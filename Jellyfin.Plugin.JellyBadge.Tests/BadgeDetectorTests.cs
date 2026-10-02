@@ -14,12 +14,12 @@ public class BadgeDetectorTests
     private static readonly JsonSerializerOptions Options = new() { Converters = { new JsonStringEnumConverter() } };
 
     [Theory]
-    [InlineData("uhd-dolby-vision-atmos", "4K,DOLBY VISION,ATMOS,7.1")]
-    [InlineData("fhd-hdr10plus-dtsx", "1080p,HDR10+,DTS:X,7.1")]
-    [InlineData("scope-sdr-dtshdma", "1080p,DTS-HD MA,5.1")]
-    [InlineData("hd-hlg-eac3-atmos", "720p,HLG,ATMOS,5.1")]
+    [InlineData("uhd-dolby-vision-atmos", "4K,DOLBY VISION,HEVC,ATMOS,7.1")]
+    [InlineData("fhd-hdr10plus-dtsx", "1080p,HDR10+,HEVC,DTS:X,7.1")]
+    [InlineData("scope-sdr-dtshdma", "1080p,H.264,DTS-HD MA,5.1")]
+    [InlineData("hd-hlg-eac3-atmos", "720p,HLG,HEVC,ATMOS,5.1")]
     [InlineData("sd-stereo", "SD")]
-    [InlineData("dolby-vision-invalid", "4K,HDR10,TRUEHD,7.1")]
+    [InlineData("dolby-vision-invalid", "4K,HDR10,HEVC,TRUEHD,7.1")]
     public void DetectsTechnicalBadges(string fixture, string expected)
     {
         var badges = BadgeDetector.BestVersion([Load(fixture)]);
@@ -32,13 +32,41 @@ public class BadgeDetectorTests
     {
         var badges = BadgeDetector.BestVersion([Load("sd-stereo"), Load("uhd-dolby-vision-atmos"), Load("fhd-hdr10plus-dtsx")]);
 
-        Assert.Equal("4K,DOLBY VISION,ATMOS,7.1", Texts(badges));
+        Assert.Equal("4K,DOLBY VISION,HEVC,ATMOS,7.1", Texts(badges));
+    }
+
+    [Theory]
+    [InlineData("/movies/Dune (2021)/Dune.2021.2160p.UHD.BluRay.REMUX.HDR.mkv", true)]
+    [InlineData("/movies/Dune (2021) Remux/Dune.mkv", true)]
+    [InlineData("/movies/Dune (2021)/Dune-remux.mkv", true)]
+    [InlineData("/movies/Dune (2021)/Dune.2021.2160p.WEB-DL.mkv", false)]
+    [InlineData("/movies/Remuxes/Dune.mkv", false)]
+    [InlineData(null, false)]
+    public void DetectsRemuxFromFileOrFolderName(string? path, bool remux)
+    {
+        var badges = BadgeDetector.BestVersion([(Load("uhd-dolby-vision-atmos"), path)]);
+
+        Assert.Equal(remux, badges.Any(b => b.Kind == BadgeKind.Remux));
+    }
+
+    [Fact]
+    public void PrefersRemuxOverEqualEncode()
+    {
+        var badges = BadgeDetector.BestVersion([(Load("uhd-dolby-vision-atmos"), "/m/Dune.WEB-DL.mkv"), (Load("uhd-dolby-vision-atmos"), "/m/Dune.REMUX.mkv")]);
+
+        Assert.Equal("4K,DOLBY VISION,HEVC,REMUX,ATMOS,7.1", Texts(badges));
+    }
+
+    [Fact]
+    public void DetectsAv1()
+    {
+        Assert.Equal("1080p,AV1", Texts(BadgeDetector.BestVersion([Load("fhd-av1-stereo")])));
     }
 
     [Fact]
     public void NoStreamsMeansNoBadges()
     {
-        Assert.Empty(BadgeDetector.BestVersion([]));
+        Assert.Empty(BadgeDetector.BestVersion(new List<IReadOnlyList<MediaStream>>()));
         Assert.Empty(BadgeDetector.BestVersion([[]]));
     }
 
@@ -52,7 +80,7 @@ public class BadgeDetectorTests
         // Two 1080p SDR episodes, one 1080p HDR10+, one 4K DV: 1080p wins, and "no HDR" wins so there is no HDR badge.
         var badges = BadgeDetector.MostCommon([sdr, sdr, hdr, uhd]);
 
-        Assert.Equal("1080p,DTS-HD MA,5.1", Texts(badges));
+        Assert.Equal("1080p,H.264,DTS-HD MA,5.1", Texts(badges));
     }
 
     [Theory]

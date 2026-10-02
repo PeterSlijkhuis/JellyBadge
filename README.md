@@ -53,6 +53,8 @@ JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos** and **★ 
 |---|---|---|
 | Resolution | `4K` `1080p` `720p` `SD` | the video stream size |
 | Dynamic range | `DOLBY VISION` `HDR10+` `HDR10` `HLG` | the video range type |
+| Video codec | `AV1` `HEVC` `H.264` | the video codec, off until you switch it on |
+| Remux | `REMUX` | the file or folder name, off until you switch it on |
 | Audio format | `ATMOS` `DTS:X` `TRUEHD` `DTS-HD MA` | the audio codec and profile |
 | Audio channels | `7.1` `5.1` | the audio channel count |
 | Community rating | `★ 8.4` | the item's community rating |
@@ -117,12 +119,14 @@ JellyBadge is off after installing, so nothing changes until you switch it on. P
 - Use the best version of a movie that has several files.
 - Show the most common quality of a series, based on its episodes.
 - Badge episode thumbnails with the episode's own quality and rating, when you switch that on under **Libraries**. Switch it off again and the next run puts the original thumbnails back.
+- Badge collection posters with the most common quality of the movies in them, when you switch that on under **Libraries**.
 - Keep running by itself: new items, updated items and a daily check of everything.
 - Put every original poster back with one click.
 
 **It cannot**
 
-- Badge season posters, backdrops or logos. Only the main poster of movies and series, and optionally the episode thumbnail, is changed.
+- Badge season posters, backdrops or logos. Only the main poster of movies, series and collections, and optionally the episode thumbnail, is changed.
+- Tell a remux from an encode by the file itself. The Remux badge only shows when the file or its folder has "Remux" in the name.
 - Add custom badges, colors, logos of rating sites, or seasonal and decorative overlays.
 - Detect what Jellyfin does not know. Badges are based on the media info Jellyfin reads from your files, so if Jellyfin does not report Atmos or DTS:X for a file, there is no badge for it.
 - Say which site a rating came from. Jellyfin stores one community rating and one critic rating without a source, so the badges show a neutral star and check mark.
