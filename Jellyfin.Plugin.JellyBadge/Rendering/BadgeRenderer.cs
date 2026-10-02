@@ -82,17 +82,28 @@ public static class BadgeRenderer
         float gap = h * 0.2f;
         var isStrip = config.Position is BadgePosition.TopStrip or BadgePosition.BottomStrip;
 
+        // Fit the badges to their area: few badges grow, many shrink. Growth stops at 1.6 times the
+        // chosen size, so a lone "4K" never turns into a banner.
+        const float maxGrow = 1.6f;
+        float fit;
         if (isStrip)
         {
-            // Shrink the row until it fits the poster width.
+            fit = (width - (2 * margin)) / (badges.Sum(b => Measure(b, h)) + (gap * (badges.Count - 1)));
+        }
+        else
+        {
+            // A corner stack may use 45% of the height and 60% of the width.
+            var stackHeight = (badges.Count * h) + ((badges.Count - 1) * gap);
+            fit = Math.Min(height * 0.45f / stackHeight, width * 0.6f / badges.Max(b => Measure(b, h)));
+        }
+
+        var scale = Math.Min(maxGrow, fit);
+        h *= scale;
+        gap *= scale;
+
+        if (isStrip)
+        {
             var rowWidth = badges.Sum(b => Measure(b, h)) + (gap * (badges.Count - 1));
-            if (rowWidth > width - (2 * margin))
-            {
-                var scale = (width - (2 * margin)) / rowWidth;
-                h *= scale;
-                gap *= scale;
-                rowWidth = width - (2 * margin);
-            }
 
             var top = config.Position == BadgePosition.TopStrip;
             var bandHeight = h + (2 * margin);

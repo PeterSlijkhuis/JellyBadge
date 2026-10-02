@@ -45,6 +45,27 @@ public class BadgeRendererTests
         }
     }
 
+    [Theory]
+    [InlineData(BadgePosition.TopLeft, 1)]
+    [InlineData(BadgePosition.TopLeft, 3)]
+    [InlineData(BadgePosition.TopLeft, 6)]
+    [InlineData(BadgePosition.TopStrip, 1)]
+    [InlineData(BadgePosition.TopStrip, 3)]
+    [InlineData(BadgePosition.TopStrip, 6)]
+    public void FitsAnyNumberOfBadges(BadgePosition position, int count)
+    {
+        var output = BadgeRenderer.Render(Poster(SKEncodedImageFormat.Jpeg), Badges[..count], new PluginConfiguration { Position = position }, out _);
+
+        using var decoded = SKBitmap.Decode(output);
+        Assert.Equal(600, decoded.Width);
+
+        var samples = Environment.GetEnvironmentVariable("JELLYBADGE_SAMPLES");
+        if (!string.IsNullOrEmpty(samples))
+        {
+            File.WriteAllBytes(Path.Combine(samples, $"fit-{position}-{count}.jpg"), output);
+        }
+    }
+
     [Fact]
     public void KeepsPng()
     {

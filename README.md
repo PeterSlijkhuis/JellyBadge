@@ -64,7 +64,7 @@ Each group can be switched on or off. A badge only appears when the item actuall
 
 ### Styles and placement
 
-Pick a corner or a strip along the top or bottom, one of three styles and three sizes. Badges scale with the poster, so they stay readable on a big TV and on a small phone.
+Pick a corner or a strip along the top or bottom, one of three styles and three sizes. Badges fill their spot: with only a few they grow (up to 1.6 times the chosen size), with many they shrink to fit. They also scale with the poster, so they stay readable on a big TV and on a small phone.
 
 <table>
   <tr>
