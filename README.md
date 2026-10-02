@@ -1,93 +1,213 @@
-# JellyBadge
+<p align="center">
+  <img src="docs/banner.png" alt="JellyBadge" width="100%" />
+</p>
 
-A Jellyfin server plugin that stamps quality and rating badges onto movie and series posters.
+<p align="center">
+  <a href="https://github.com/PeterSlijkhuis/JellyBadge/releases/latest"><img src="https://img.shields.io/github/v/release/PeterSlijkhuis/JellyBadge?style=flat-square&label=release&color=aa5cc3" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/Jellyfin-12.1%2B-00a4dc?style=flat-square" alt="Jellyfin 12.1 or newer" />
+  <a href="https://github.com/PeterSlijkhuis/JellyBadge/actions/workflows/build.yaml"><img src="https://img.shields.io/github/actions/workflow/status/PeterSlijkhuis/JellyBadge/build.yaml?style=flat-square&label=build" alt="Build" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-555?style=flat-square" alt="GPL-3.0" /></a>
+</p>
 
-The badges are drawn into the poster image itself on the server, so they show up in every Jellyfin client: the web app, mobile apps and native TV apps such as Wholphin on Android TV. No CSS, no JavaScript, no client changes.
+<p align="center"><b>Quality and rating badges on your posters, stamped on the server, visible in every Jellyfin app.</b></p>
 
-| Top left, pill | Bottom right, square | Bottom strip, minimal |
+JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos** and **★ 8.4** to your movie and series posters. The badges are drawn into the poster image itself, so they show up everywhere: the web app, phones, tablets and native TV apps such as Wholphin on Android TV. No themes, no CSS, no JavaScript, nothing to install on your devices.
+
+<table>
+  <tr>
+    <th>Before</th>
+    <th>After</th>
+  </tr>
+  <tr>
+    <td><img src="docs/before.jpg" alt="Poster without badges" width="300" /></td>
+    <td><img src="docs/after.jpg" alt="The same poster with badges" width="300" /></td>
+  </tr>
+</table>
+
+## Contents
+
+- [What you get](#what-you-get)
+- [Install](#install)
+- [Getting started](#getting-started)
+- [What it can and cannot do](#what-it-can-and-cannot-do)
+- [Removing badges](#removing-badges)
+- [FAQ](#faq)
+- [For developers](#for-developers)
+- [Credits](#credits)
+- [License](#license)
+
+## What you get
+
+- **Works in every client.** Badges are part of the poster, so every Jellyfin app shows them, including ones that never load custom styles.
+- **Smart detection.** Resolution, HDR format, audio format and channels come from your actual files. For movies with several versions, the best one wins. For series, the most common quality across the episodes is used.
+- **Ratings at a glance.** Community score and critic score from your existing metadata.
+- **Your originals are safe.** Every original poster is backed up before the first change, and one button puts them all back.
+- **Hands off.** New and updated items are badged automatically in the background, and a daily task keeps the whole library in sync. Library scans never wait on it.
+- **Keeps up with changes.** When a metadata refresh or an upload replaces a poster, JellyBadge treats the new one as the original and badges it again.
+- **Episodes too, if you like.** Switch on episode thumbnails and every episode gets its own quality and rating badges.
+- **Live preview.** See exactly how a poster will look before anything is written.
+
+### Badges
+
+| Group | Badges | Comes from |
 |---|---|---|
-| ![](docs/sample-top-left-pill.jpg) | ![](docs/sample-bottom-right-square.jpg) | ![](docs/sample-bottom-strip-minimal.jpg) |
+| Resolution | `4K` `1080p` `720p` `SD` | the video stream size |
+| Dynamic range | `DOLBY VISION` `HDR10+` `HDR10` `HLG` | the video range type |
+| Audio format | `ATMOS` `DTS:X` `TRUEHD` `DTS-HD MA` | the audio codec and profile |
+| Audio channels | `7.1` `5.1` | the audio channel count |
+| Community rating | `★ 8.4` | the item's community rating |
+| Critic rating | `✓ 93%` | the item's critic rating |
 
-## Badges
+Each group can be switched on or off. A badge only appears when the item actually has it.
 
-| Group | Values | Source |
-|---|---|---|
-| Resolution | 4K, 1080p, 720p, SD | video stream size |
-| Dynamic range | Dolby Vision, HDR10+, HDR10, HLG | video range type |
-| Audio format | Atmos, DTS:X, TrueHD, DTS-HD MA | audio codec and profile |
-| Audio channels | 7.1, 5.1 | audio channel count |
-| Community rating | star and score, for example 7.8 | item metadata |
-| Critic rating | check mark and percentage, for example 92% | item metadata |
+### Styles and placement
 
-Movies with several versions use the best version. Series use the most common quality across their episodes.
+Pick a corner or a strip along the top or bottom, one of three styles and three sizes. Badges scale with the poster, so they stay readable on a big TV and on a small phone.
 
-## Requirements
-
-Jellyfin server 12.1 or newer.
+<table>
+  <tr>
+    <td align="center"><img src="docs/after.jpg" width="180" alt="Top left, pill" /><br /><sub>Top left, pill</sub></td>
+    <td align="center"><img src="docs/example-square.jpg" width="180" alt="Top right, square" /><br /><sub>Top right, square</sub></td>
+    <td align="center"><img src="docs/example-top-strip.jpg" width="180" alt="Top strip, pill" /><br /><sub>Top strip, pill</sub></td>
+    <td align="center"><img src="docs/example-minimal-strip.jpg" width="180" alt="Bottom strip, minimal" /><br /><sub>Bottom strip, minimal</sub></td>
+    <td align="center"><img src="docs/example-large.jpg" width="180" alt="Bottom right, large" /><br /><sub>Bottom right, large</sub></td>
+  </tr>
+</table>
 
 ## Install
 
-### From the plugin repository (recommended)
+JellyBadge needs **Jellyfin 12.1 or newer**.
 
-1. In Jellyfin go to **Dashboard > Plugins > Repositories**, click **+** and add:
+### Option 1: plugin repository (recommended)
+
+1. Open **Dashboard > Plugins** and click **Manage Repositories**.
+2. Click **+**, give it a name such as `JellyBadge` and paste this URL:
    ```
    https://github.com/PeterSlijkhuis/JellyBadge/releases/latest/download/manifest.json
    ```
-2. Go to **Catalog**, install **JellyBadge** and restart the server. Updates show up in the same place.
+3. Go back to **Plugins**, open **Available**, find **JellyBadge** and click **Install**.
+4. Restart Jellyfin.
 
-### Manual install
+Updates show up in the same place and can install automatically.
+
+### Option 2: manual install
 
 1. Download `jellybadge_x.y.z.0.zip` from the [latest release](https://github.com/PeterSlijkhuis/JellyBadge/releases/latest).
-2. Unzip it into a `JellyBadge` folder inside your server's `plugins` directory (for Docker usually `/config/plugins/JellyBadge`).
-3. Restart the server.
+2. Unzip it into a folder called `JellyBadge` inside your Jellyfin `plugins` folder. With Docker this is usually `/config/plugins/JellyBadge`.
+3. Restart Jellyfin.
 
-### First run
+## Getting started
 
-Open **Dashboard > Plugins > JellyBadge**, pick your badges and layout, check a few posters with **Show preview**, then tick **Enable badges** and click **Save and apply to library now**.
+Open **Dashboard > Plugins > JellyBadge**.
 
-From then on new and updated items are badged automatically, and a scheduled task checks the whole library once a day.
+<p align="center"><img src="docs/settings.png" alt="JellyBadge settings page" width="900" /></p>
 
-## How it works
+1. **Pick your badges.** Click a tile to switch a badge group on or off.
+2. **Choose the placement.** Click a spot on the little poster.
+3. **Choose a style and size.** The live preview updates as you go. Search any movie or series to try it on, and hold **Hold to compare** to see the original.
+4. **Switch it on.** Flip the switch at the top to **Active**, then click **Save and apply now**.
 
-- Before a poster is changed for the first time, the original is copied to the plugin data folder (`plugins/JellyBadge/originals`).
-- The badged poster is saved as the item's Primary image in Jellyfin's own metadata folder. Files in your media folders are never written or deleted.
-- A hash of the original, the badge settings and the detected badges is stored per item. Items where nothing changed are skipped.
-- When a metadata refresh or a manual upload replaces a poster, JellyBadge treats the new image as the new original and badges it again.
-- Work runs in the background with a concurrency limit, so library scans are never slowed down.
+JellyBadge is off after installing, so nothing changes until you switch it on. Progress of the first run shows under **Dashboard > Scheduled Tasks > Apply poster badges**.
 
-## Remove all badges
+## What it can and cannot do
 
-Open **Dashboard > Plugins > JellyBadge** and click **Remove all badges and restore originals**. This:
+**It can**
 
-1. turns JellyBadge off, so nothing gets badged again,
+- Badge movie and series posters in the libraries you choose.
+- Use the best version of a movie that has several files.
+- Show the most common quality of a series, based on its episodes.
+- Badge episode thumbnails with the episode's own quality and rating, when you switch that on under **Libraries**. Switch it off again and the next run puts the original thumbnails back.
+- Keep running by itself: new items, updated items and a daily check of everything.
+- Put every original poster back with one click.
+
+**It cannot**
+
+- Badge season posters, backdrops or logos. Only the main poster of movies and series, and optionally the episode thumbnail, is changed.
+- Add custom badges, colors, logos of rating sites, or seasonal and decorative overlays.
+- Detect what Jellyfin does not know. Badges are based on the media info Jellyfin reads from your files, so if Jellyfin does not report Atmos or DTS:X for a file, there is no badge for it.
+- Say which site a rating came from. Jellyfin stores one community rating and one critic rating without a source, so the badges show a neutral star and check mark.
+- Run on Jellyfin 10.x.
+
+## Removing badges
+
+Open **Dashboard > Plugins > JellyBadge** and click **Restore originals**. This:
+
+1. switches JellyBadge off, so nothing gets badged again,
 2. puts every original poster back,
-3. deletes all backups and state from the plugin data folder.
+3. deletes all backups and stored data of the plugin.
 
-If a poster was replaced after it was badged (for example you uploaded a new one), the newer poster is kept.
+If you replaced a poster after it was badged, your newer poster is kept.
 
-**Run this before uninstalling the plugin.** Uninstalling alone leaves the badged posters in place.
+> **Uninstalling?** Click **Restore originals** first. Uninstalling alone leaves the badged posters in place.
 
-## Build
+## FAQ
 
-```
+<details>
+<summary><b>Does JellyBadge change files in my media folders?</b></summary>
+
+No. Badged posters are saved in Jellyfin's own metadata folder. Your `poster.jpg` files and other artwork next to your media are never written or deleted, so tools like Kodi, Plex, Sonarr and Radarr never see a badged poster.
+</details>
+
+<details>
+<summary><b>I switched it on, but my app still shows posters without badges.</b></summary>
+
+Most apps keep posters in a cache. Give it a moment, pull to refresh, or clear the app's cache. Also check that the **Apply poster badges** task has finished under **Dashboard > Scheduled Tasks**.
+</details>
+
+<details>
+<summary><b>A badge is missing or wrong for one item.</b></summary>
+
+JellyBadge reads the media info Jellyfin collected for the file. Open the item, choose **Refresh metadata**, and the poster is updated with what Jellyfin finds. If Jellyfin itself does not show the format under the item's media info, JellyBadge cannot show it either.
+</details>
+
+<details>
+<summary><b>I changed a poster myself. Will JellyBadge overwrite it?</b></summary>
+
+It treats your new poster as the original, backs it up and adds badges to it. If you do not want badges on it, use **Restore originals** or limit JellyBadge to certain libraries.
+</details>
+
+<details>
+<summary><b>Will it slow down my server or library scans?</b></summary>
+
+No. Library events only add the item to a queue. The work happens in the background, two posters at a time by default, and items whose poster, settings and media did not change are skipped without even opening the image. New movies, shows and episodes are badged as soon as Jellyfin has their artwork, without waiting for the daily task.
+</details>
+
+<details>
+<summary><b>Where are the original posters kept?</b></summary>
+
+In the plugin's data folder inside your Jellyfin data folder: `plugins/Jellyfin.Plugin.JellyBadge/originals`.
+</details>
+
+<details>
+<summary><b>Do episodes have ratings?</b></summary>
+
+Most do. Metadata providers such as TMDb and TheTVDB give each episode its own community score, so episode thumbnails get a star badge just like posters. Critic scores for single episodes are rare, so that badge usually stays away on episodes. Episodes that Jellyfin has no rating for simply get no rating badge.
+</details>
+
+<details>
+<summary><b>Do I need to install anything on my TV or phone?</b></summary>
+
+No. Everything happens on the server. Your apps just load the poster like they always do.
+</details>
+
+## For developers
+
+```bash
 dotnet test JellyBadge.slnx
 dotnet publish Jellyfin.Plugin.JellyBadge -c Release -o out
 ```
 
-Copy `out/Jellyfin.Plugin.JellyBadge.dll` into a `JellyBadge` folder in your server's `plugins` directory and restart.
+- Built on the official [jellyfin-plugin-template](https://github.com/jellyfin/jellyfin-plugin-template), targeting .NET 10 and Jellyfin 12.1.
+- Badge detection is plain logic in `Detection/BadgeDetector.cs`, covered by unit tests with stream fixtures in `Jellyfin.Plugin.JellyBadge.Tests/Fixtures`.
+- **Releases are automatic.** Every push to `main` builds, tests and publishes a release with the plugin zip and `manifest.json`. The version starts from `version` in `.github/plugin.json` and counts the last number up (1.0.0, 1.0.1, 1.0.2) until you change it by hand. You can also start a release from **Actions > Release > Run workflow**.
 
-## Release
+## Credits
 
-Every push to `main` (for example merging a pull request) publishes a release automatically, with the note "Bug fixes and improvements." The release holds the plugin zip and an updated `manifest.json`, which is what the repository URL above points to. Changes that only touch Markdown or `docs/` do not release.
-
-Version numbers come from `version` in `.github/plugin.json`:
-
-- If no release has that version yet, it is released as is.
-- After that, each release counts the last number up: 1.0.0, 1.0.1, 1.0.2 and so on.
-- To jump, for example to 1.1.0 or 2.0.0, change `version` by hand. Counting continues from there.
-
-You can also start a release by hand under **Actions > Release > Run workflow**.
+- [Jellyfin](https://jellyfin.org) and its [plugin template](https://github.com/jellyfin/jellyfin-plugin-template).
+- [SkiaSharp](https://github.com/mono/SkiaSharp) for drawing, using the copy that ships with Jellyfin.
+- [Barlow Condensed](https://github.com/jpt/barlow) by Jeremy Tribby, used for the badge lettering under the SIL Open Font License.
+- The posters in this README are made up for illustration.
 
 ## License
 
-GPL-3.0. The bundled Barlow Condensed font is under the SIL Open Font License, see `Jellyfin.Plugin.JellyBadge/Rendering/Fonts/OFL.txt`.
+JellyBadge is licensed under the [GNU General Public License v3.0](LICENSE). The bundled Barlow Condensed font is licensed under the [SIL Open Font License 1.1](Jellyfin.Plugin.JellyBadge/Rendering/Fonts/OFL.txt).

@@ -84,6 +84,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether to show the critic rating badge.</summary>
     public bool ShowCriticRating { get; set; } = true;
 
+    /// <summary>Gets or sets a value indicating whether episode thumbnails get badged too.</summary>
+    public bool BadgeEpisodes { get; set; }
+
     /// <summary>Gets or sets the badge position.</summary>
     public BadgePosition Position { get; set; } = BadgePosition.TopLeft;
 

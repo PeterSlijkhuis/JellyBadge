@@ -77,13 +77,13 @@ public sealed class PosterProcessor : IDisposable
     }
 
     /// <summary>
-    /// Whether this item is a movie or series in an included library.
+    /// Whether this item is a movie, series or (when switched on) episode in an included library.
     /// </summary>
     /// <param name="item">The item.</param>
     /// <returns>True if it should be badged.</returns>
     public bool IsCandidate(BaseItem item)
     {
-        if (item is not (Movie or Series) || item.IsVirtualItem)
+        if (item is not (Movie or Series or Episode) || item.IsVirtualItem || (item is Episode && !Config.BadgeEpisodes))
         {
             return false;
         }
@@ -101,7 +101,7 @@ public sealed class PosterProcessor : IDisposable
     /// <returns>A task.</returns>
     public async Task ProcessAsync(BaseItem item, CancellationToken cancellationToken)
     {
-        if (!Config.Enabled || !IsCandidate(item) || !_busy.TryAdd(item.Id, 0))
+        if (!Config.Enabled || !_busy.TryAdd(item.Id, 0))
         {
             return;
         }
@@ -109,7 +109,17 @@ public sealed class PosterProcessor : IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await ProcessCoreAsync(item, cancellationToken).ConfigureAwait(false);
+            if (IsCandidate(item))
+            {
+                await ProcessCoreAsync(item, cancellationToken).ConfigureAwait(false);
+            }
+            else if (LoadState(item.Id) is { } state)
+            {
+                // Excluded since we badged it (episodes switched off, library deselected): put its original back.
+                await RestoreAsync(item, state, cancellationToken).ConfigureAwait(false);
+                File.Delete(OriginalFile(item.Id, state));
+                File.Delete(StateFile(item.Id));
+            }
         }
         finally
         {
@@ -185,6 +195,18 @@ public sealed class PosterProcessor : IDisposable
 
     private async Task ProcessCoreAsync(BaseItem item, CancellationToken cancellationToken)
     {
+        var config = Config;
+        var badges = GetBadges(item, config);
+        var state = LoadState(item.Id);
+        var info = item.GetImageInfo(ImageType.Primary, 0);
+
+        // Done before: same image file as we left it and same badges and settings. Skip without reading the image.
+        if (state is not null && info is not null && info.Path == state.OutputPath && info.DateModified == state.OutputModified
+            && InputHash(state, badges, config) == state.InputHash)
+        {
+            return;
+        }
+
         var current = ReadPrimary(item);
         if (current is null)
         {
@@ -193,7 +215,6 @@ public sealed class PosterProcessor : IDisposable
 
         var (currentBytes, currentPath) = current.Value;
         var currentHash = Hash(currentBytes);
-        var state = LoadState(item.Id);
         byte[] original;
 
         if (state is not null && state.Ours.Contains(currentHash))
@@ -229,20 +250,10 @@ public sealed class PosterProcessor : IDisposable
             state.OutputHash = string.Empty;
         }
 
-        var config = Config;
-        var badges = GetBadges(item, config);
-        var inputHash = Hash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
-        {
-            RenderVersion,
-            state.OriginalHash,
-            badges,
-            config.Position,
-            config.Style,
-            config.Size
-        })));
-
+        var inputHash = InputHash(state, badges, config);
         if (inputHash == state.InputHash && currentHash == state.OutputHash)
         {
+            MarkDone(item, state);
             return;
         }
 
@@ -252,7 +263,7 @@ public sealed class PosterProcessor : IDisposable
             state.OutputHash = currentHash;
             state.Ours.Add(currentHash);
             state.InputHash = inputHash;
-            SaveState(item.Id, state);
+            MarkDone(item, state);
             return;
         }
 
@@ -264,7 +275,28 @@ public sealed class PosterProcessor : IDisposable
         state.InputHash = inputHash;
         SaveState(item.Id, state);
         await SavePrimaryAsync(item, output, BadgeRenderer.MimeType(output), cancellationToken).ConfigureAwait(false);
+        MarkDone(item, state);
         _logger.LogDebug("Badged {Item}: {Badges}", item.Name, string.Join(", ", badges.Select(b => b.Text)));
+    }
+
+    private static string InputHash(PosterState state, List<Badge> badges, PluginConfiguration config)
+        => Hash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+        {
+            RenderVersion,
+            state.OriginalHash,
+            badges,
+            config.Position,
+            config.Style,
+            config.Size
+        })));
+
+    // Remember which file and timestamp we left, so later runs can skip this item without reading the image.
+    private static void MarkDone(BaseItem item, PosterState state)
+    {
+        var info = item.GetImageInfo(ImageType.Primary, 0);
+        state.OutputPath = info?.Path ?? string.Empty;
+        state.OutputModified = info?.DateModified ?? default;
+        SaveState(item.Id, state);
     }
 
     private async Task<bool> RestoreAsync(BaseItem item, PosterState state, CancellationToken cancellationToken)
@@ -395,6 +427,10 @@ public sealed class PosterProcessor : IDisposable
         public string OutputHash { get; set; } = string.Empty;
 
         public string InputHash { get; set; } = string.Empty;
+
+        public string OutputPath { get; set; } = string.Empty;
+
+        public DateTime OutputModified { get; set; }
 
         // Every image we ever wrote from this original. Matching any of them means "ours", so an
         // interrupted save can never make us back up a badged poster as if it were the original.
