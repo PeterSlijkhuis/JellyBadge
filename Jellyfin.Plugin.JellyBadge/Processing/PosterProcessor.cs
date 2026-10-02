@@ -39,7 +39,7 @@ public sealed class PosterProcessor : IDisposable
     private readonly ILogger<PosterProcessor> _logger;
     private readonly SemaphoreSlim _gate;
     private readonly ConcurrentDictionary<Guid, byte> _busy = new();
-    private readonly ConcurrentDictionary<Guid, DateTime> _justWritten = new();
+    private readonly ConcurrentDictionary<Guid, (string Path, DateTime Modified)> _written = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PosterProcessor"/> class.
@@ -58,7 +58,7 @@ public sealed class PosterProcessor : IDisposable
         _logger = logger;
 
         // ponytail: limit is read once at startup, a change needs a server restart.
-        _gate = new SemaphoreSlim(Math.Max(1, Config.MaxConcurrency));
+        _gate = new SemaphoreSlim(Math.Max(1, Plugin.Instance?.Configuration.MaxConcurrency ?? 2));
     }
 
     private static PluginConfiguration Config => Plugin.Instance!.Configuration;
@@ -66,11 +66,15 @@ public sealed class PosterProcessor : IDisposable
     private static string DataDir => Plugin.Instance!.DataFolderPath;
 
     /// <summary>
-    /// Returns true if this item's poster was written by us a moment ago, so its update event can be ignored.
+    /// Returns true if the item's current poster is exactly the one we last set, so its update event can be ignored.
     /// </summary>
-    /// <param name="id">Item id.</param>
-    /// <returns>Whether we just wrote it.</returns>
-    public bool WasJustWritten(Guid id) => _justWritten.TryGetValue(id, out var at) && DateTime.UtcNow - at < TimeSpan.FromSeconds(30);
+    /// <param name="item">The item.</param>
+    /// <returns>Whether the current poster is our own write.</returns>
+    public bool IsOwnWrite(BaseItem item)
+    {
+        var info = item.GetImageInfo(ImageType.Primary, 0);
+        return info is not null && _written.TryGetValue(item.Id, out var w) && w.Path == info.Path && w.Modified == info.DateModified;
+    }
 
     /// <summary>
     /// Whether this item is a movie or series in an included library.
@@ -276,8 +280,8 @@ public sealed class PosterProcessor : IDisposable
         {
             // The original file is still where it was (for example next to the media): point the item back at it.
             item.SetImagePath(ImageType.Primary, 0, _fileSystem.GetFileInfo(state.OriginalPath));
+            RememberWrite(item);
             await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, cancellationToken).ConfigureAwait(false);
-            _justWritten[item.Id] = DateTime.UtcNow;
             if (current.Value.Path.StartsWith(_paths.InternalMetadataPath, StringComparison.OrdinalIgnoreCase))
             {
                 File.Delete(current.Value.Path);
@@ -297,10 +301,19 @@ public sealed class PosterProcessor : IDisposable
         Directory.CreateDirectory(DataDir);
         var temp = Path.Combine(DataDir, "tmp-" + Guid.NewGuid().ToString("N"));
         await File.WriteAllBytesAsync(temp, image, cancellationToken).ConfigureAwait(false);
-        _justWritten[item.Id] = DateTime.UtcNow;
         await _providerManager.SaveImage(item, temp, mime, ImageType.Primary, 0, false, cancellationToken).ConfigureAwait(false);
+        RememberWrite(item);
         await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, cancellationToken).ConfigureAwait(false);
-        _justWritten[item.Id] = DateTime.UtcNow;
+    }
+
+    // Recorded before UpdateToRepositoryAsync, because that is what fires the ItemUpdated event.
+    private void RememberWrite(BaseItem item)
+    {
+        var info = item.GetImageInfo(ImageType.Primary, 0);
+        if (info is not null)
+        {
+            _written[item.Id] = (info.Path, info.DateModified);
+        }
     }
 
     private List<Badge> GetBadges(BaseItem item, PluginConfiguration config)
