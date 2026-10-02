@@ -78,7 +78,15 @@ Copy `out/Jellyfin.Plugin.JellyBadge.dll` into a `JellyBadge` folder in your ser
 
 ## Release
 
-On GitHub, go to **Releases > Draft a new release**, create a tag such as `v1.0.0` and publish. The release workflow runs the tests and attaches the plugin zip and an updated `manifest.json` to the release, which is what the repository URL above points to. Plugin metadata lives in `.github/plugin.json`.
+Every push to `main` (for example merging a pull request) publishes a release automatically, with the note "Bug fixes and improvements." The release holds the plugin zip and an updated `manifest.json`, which is what the repository URL above points to. Changes that only touch Markdown or `docs/` do not release.
+
+Version numbers come from `version` in `.github/plugin.json`:
+
+- If no release has that version yet, it is released as is.
+- After that, each release counts the last number up: 1.0.0, 1.0.1, 1.0.2 and so on.
+- To jump, for example to 1.1.0 or 2.0.0, change `version` by hand. Counting continues from there.
+
+You can also start a release by hand under **Actions > Release > Run workflow**.
 
 ## License
 
