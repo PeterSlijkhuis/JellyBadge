@@ -199,7 +199,7 @@ dotnet publish Jellyfin.Plugin.JellyBadge -c Release -o out
 
 - Built on the official [jellyfin-plugin-template](https://github.com/jellyfin/jellyfin-plugin-template), targeting .NET 10 and Jellyfin 12.1.
 - Badge detection is plain logic in `Detection/BadgeDetector.cs`, covered by unit tests with stream fixtures in `Jellyfin.Plugin.JellyBadge.Tests/Fixtures`.
-- **Releasing.** Open **Actions > Release > Run workflow**. It builds, tests and publishes a release with the plugin zip and `manifest.json`. The version starts from `version` in `.github/plugin.json` and counts the last number up (1.0.0, 1.0.1, 1.0.2) until you change it by hand.
+- **Releasing.** Open **Actions > Release > Run workflow**, fill in the version and release notes, and run it. It builds, tests and publishes a release with the plugin zip and `manifest.json`. Leave the version empty to count the last number up from the latest release (1.0.0, 1.0.1, 1.0.2). The notes default to "Bug fixes and improvements." and show up in Jellyfin's plugin catalog.
 
 ## Credits
 

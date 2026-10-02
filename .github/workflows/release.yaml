@@ -3,11 +3,20 @@ name: Release
 # Run by hand from Actions > Release > Run workflow. Publishes a release with the plugin zip and manifest.json, so Jellyfin can install from:
 #   https://github.com/<owner>/<repo>/releases/latest/download/manifest.json
 #
-# Versioning: "version" in .github/plugin.json is the version you set by hand. If no release has it yet,
-# that exact version is released. After that each release counts the last number up (1.0.0, 1.0.1, 1.0.2)
-# until you set a new version by hand.
+# Versioning: fill in "Version" when you run it to release that exact version. Left empty, it uses
+# "version" in .github/plugin.json if no release has that yet, otherwise it counts the last number of the
+# latest release up (1.0.0, 1.0.1, 1.0.2). "Release notes" goes into the release, the manifest and Jellyfin.
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version, like 1.1.0. Leave empty to count up from the last release.'
+        required: false
+        default: ''
+      notes:
+        description: 'Release notes'
+        required: true
+        default: 'Bug fixes and improvements.'
 
 permissions:
   contents: write
@@ -19,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      INPUT_VERSION: ${{ inputs.version }}
+      NOTES: ${{ inputs.notes }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,7 +43,15 @@ jobs:
           BASE=$(jq -r .version .github/plugin.json)
           LATEST=$(git tag --list 'v*' --sort=-v:refname | head -n1)
           LATEST=${LATEST#v}
-          if [ -z "$LATEST" ] || [ "$(printf '%s\n%s\n' "$BASE" "$LATEST" | sort -V | tail -n1)" = "$BASE" ] && [ "$BASE" != "$LATEST" ]; then
+          if [ -n "$INPUT_VERSION" ]; then
+            if ! [[ "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Version must look like 1.1.0, got '$INPUT_VERSION'"; exit 1
+            fi
+            if git rev-parse -q --verify "refs/tags/v$INPUT_VERSION" >/dev/null; then
+              echo "::error::Version $INPUT_VERSION is already released"; exit 1
+            fi
+            VERSION=$INPUT_VERSION
+          elif [ -z "$LATEST" ] || [ "$(printf '%s\n%s\n' "$BASE" "$LATEST" | sort -V | tail -n1)" = "$BASE" ] && [ "$BASE" != "$LATEST" ]; then
             VERSION=$BASE
           else
             VERSION="${LATEST%.*}.$(( ${LATEST##*.} + 1 ))"
@@ -50,8 +69,8 @@ jobs:
           ZIP="jellybadge_${VERSION}.zip"
           dotnet publish Jellyfin.Plugin.JellyBadge -c Release -o out -p:Version="$VERSION" -p:AssemblyVersion="$VERSION" -p:FileVersion="$VERSION"
           # meta.json makes the zip work as a standalone install too: unzip into plugins/JellyBadge and restart.
-          jq --arg v "$VERSION" --arg ts "$TS" \
-            '{guid, name, overview, description, owner, category, targetAbi, version: $v, changelog: "Bug fixes and improvements.", timestamp: $ts, status: "Active", autoUpdate: true, imagePath: "jellybadge.png", assemblies: []}' \
+          jq --arg v "$VERSION" --arg ts "$TS" --arg notes "$NOTES" \
+            '{guid, name, overview, description, owner, category, targetAbi, version: $v, changelog: $notes, timestamp: $ts, status: "Active", autoUpdate: true, imagePath: "jellybadge.png", assemblies: []}' \
             .github/plugin.json > out/meta.json
           cp docs/jellybadge.png out/
           (cd out && zip "../$ZIP" Jellyfin.Plugin.JellyBadge.dll meta.json jellybadge.png)
@@ -65,9 +84,9 @@ jobs:
           gh release download --repo "$GITHUB_REPOSITORY" --pattern manifest.json --output previous.json \
             || echo '[{"versions": []}]' > previous.json
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${ZIP}"
-          jq --slurpfile prev previous.json --arg v "$VERSION" --arg ts "$TS" --arg url "$URL" \
+          jq --slurpfile prev previous.json --arg v "$VERSION" --arg ts "$TS" --arg url "$URL" --arg notes "$NOTES" \
              --arg sum "$(md5sum "$ZIP" | cut -d' ' -f1)" \
-             '[del(.version) + {versions: ([{version: $v, changelog: "Bug fixes and improvements.", targetAbi: .targetAbi, sourceUrl: $url, checksum: $sum, timestamp: $ts}]
+             '[del(.version) + {versions: ([{version: $v, changelog: $notes, targetAbi: .targetAbi, sourceUrl: $url, checksum: $sum, timestamp: $ts}]
                 + [$prev[0][0].versions[] | select(.version != $v)])} | del(.targetAbi)]' \
              .github/plugin.json > manifest.json
           cat manifest.json
@@ -75,4 +94,4 @@ jobs:
       - name: Publish release
         run: |
           gh release create "$TAG" "$ZIP" manifest.json --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "JellyBadge $TAG" --notes "Bug fixes and improvements."
+            --title "JellyBadge $TAG" --notes "$NOTES"
