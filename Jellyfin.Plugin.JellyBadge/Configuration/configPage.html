@@ -242,7 +242,7 @@
                         <section class="jb-card jb-danger">
                             <h2>Remove all badges</h2>
                             <div class="jb-danger-row">
-                                <p class="jb-hint" style="margin:0;flex:1 1 300px;">Puts every original poster back, deletes the backups and turns JellyBadge off. Do this before uninstalling.</p>
+                                <p class="jb-hint" style="margin:0;flex:1 1 300px;">Puts every original poster back, deletes the backups and turns JellyBadge off. Switching off or uninstalling does the same.</p>
                                 <button type="button" class="jb-btn danger" id="jbRestore">Restore originals</button>
                             </div>
                         </section>
@@ -431,6 +431,10 @@
                 }
 
                 function save() {
+                    if (JSON.parse(saved).Enabled && !config.Enabled &&
+                        !window.confirm('Turning JellyBadge off puts every original poster back. Continue?')) {
+                        return Promise.reject(new Error('cancelled'));
+                    }
                     Dashboard.showLoadingMsg();
                     return ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
                         saved = JSON.stringify(config);
@@ -462,7 +466,7 @@
                         return;
                     }
                     if (el.classList.contains('jb-result')) { selectItem(results[+el.getAttribute('data-index')]); return; }
-                    if (el.id === 'jbSave') { save(); return; }
+                    if (el.id === 'jbSave') { save().catch(function () { /* reported or cancelled */ }); return; }
                     if (el.id === 'jbApply') {
                         if (!config.Enabled) { Dashboard.alert('Switch badges on at the top first.'); return; }
                         save().then(function () {

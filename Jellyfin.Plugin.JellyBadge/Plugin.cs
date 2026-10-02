@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Jellyfin.Plugin.JellyBadge.Configuration;
 using Jellyfin.Plugin.JellyBadge.Processing;
 using MediaBrowser.Common.Configuration;
@@ -41,6 +42,14 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// Gets the current plugin instance.
     /// </summary>
     public static Plugin? Instance { get; private set; }
+
+    /// <inheritdoc />
+    public override void OnUninstalling()
+    {
+        // Put the originals back before the plugin goes, so no badged poster is left behind.
+        PosterProcessor.Current?.RestoreAllAsync(CancellationToken.None).GetAwaiter().GetResult();
+        base.OnUninstalling();
+    }
 
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()

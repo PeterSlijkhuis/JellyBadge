@@ -68,11 +68,5 @@ public class JellyBadgeController : ControllerBase
     /// <returns>How many posters were restored.</returns>
     [HttpPost("RestoreAll")]
     public async Task<ActionResult<int>> RestoreAll(CancellationToken cancellationToken)
-    {
-        // Disable first so no event re-badges a poster we just restored.
-        var plugin = Plugin.Instance!;
-        plugin.Configuration.Enabled = false;
-        plugin.SaveConfiguration();
-        return await _processor.RestoreAllAsync(cancellationToken).ConfigureAwait(false);
-    }
+        => await _processor.RestoreAllAsync(cancellationToken).ConfigureAwait(false);
 }
