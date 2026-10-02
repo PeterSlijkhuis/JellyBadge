@@ -70,13 +70,15 @@ public static class BadgeRenderer
             return;
         }
 
-        float h = width * config.Size switch
+        // Size from the width a 2:3 poster of this height would have, so wide episode thumbnails get the same proportions as posters.
+        var basis = Math.Min(width, height * 2f / 3f);
+        float h = basis * config.Size switch
         {
             BadgeSize.Small => 0.065f,
             BadgeSize.Large => 0.10f,
             _ => 0.08f
         };
-        float margin = width * 0.035f;
+        float margin = basis * 0.035f;
         float gap = h * 0.2f;
         var isStrip = config.Position is BadgePosition.TopStrip or BadgePosition.BottomStrip;
 

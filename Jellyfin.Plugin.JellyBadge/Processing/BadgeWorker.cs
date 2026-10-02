@@ -84,15 +84,21 @@ public sealed class BadgeWorker : BackgroundService
             return;
         }
 
-        // A new or updated episode can change what is most common for its series.
         // Our own poster save fires ItemUpdated too: drop it here, the hash check catches anything else.
-        var id = e.Item switch
+        if (e.Item is Movie or Series or Episode && !_processor.IsOwnWrite(e.Item))
         {
-            Movie or Series when !_processor.IsOwnWrite(e.Item) => e.Item.Id,
-            Episode episode => episode.SeriesId,
-            _ => Guid.Empty
-        };
+            Enqueue(e.Item.Id);
+        }
 
+        // A new or updated episode can change what is most common for its series.
+        if (e.Item is Episode episode)
+        {
+            Enqueue(episode.SeriesId);
+        }
+    }
+
+    private void Enqueue(Guid id)
+    {
         if (id != Guid.Empty && _pending.TryAdd(id, 0))
         {
             _queue.Writer.TryWrite(id);

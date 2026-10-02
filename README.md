@@ -44,6 +44,7 @@ JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos** and **★ 
 - **Your originals are safe.** Every original poster is backed up before the first change, and one button puts them all back.
 - **Hands off.** New and updated items are badged automatically in the background, and a daily task keeps the whole library in sync. Library scans never wait on it.
 - **Keeps up with changes.** When a metadata refresh or an upload replaces a poster, JellyBadge treats the new one as the original and badges it again.
+- **Episodes too, if you like.** Switch on episode thumbnails and every episode gets its own quality and rating badges.
 - **Live preview.** See exactly how a poster will look before anything is written.
 
 ### Badges
@@ -115,12 +116,13 @@ JellyBadge is off after installing, so nothing changes until you switch it on. P
 - Badge movie and series posters in the libraries you choose.
 - Use the best version of a movie that has several files.
 - Show the most common quality of a series, based on its episodes.
+- Badge episode thumbnails with the episode's own quality and rating, when you switch that on under **Libraries**. Switch it off again and the next run puts the original thumbnails back.
 - Keep running by itself: new items, updated items and a daily check of everything.
 - Put every original poster back with one click.
 
 **It cannot**
 
-- Badge episode thumbnails, season posters, backdrops or logos. Only the main poster is changed.
+- Badge season posters, backdrops or logos. Only the main poster of movies and series, and optionally the episode thumbnail, is changed.
 - Add custom badges, colors, logos of rating sites, or seasonal and decorative overlays.
 - Detect what Jellyfin does not know. Badges are based on the media info Jellyfin reads from your files, so if Jellyfin does not report Atmos or DTS:X for a file, there is no badge for it.
 - Say which site a rating came from. Jellyfin stores one community rating and one critic rating without a source, so the badges show a neutral star and check mark.
@@ -174,6 +176,12 @@ No. Library events only add the item to a queue. The work happens in the backgro
 <summary><b>Where are the original posters kept?</b></summary>
 
 In the plugin's data folder inside your Jellyfin data folder: `plugins/Jellyfin.Plugin.JellyBadge/originals`.
+</details>
+
+<details>
+<summary><b>Do episodes have ratings?</b></summary>
+
+Most do. Metadata providers such as TMDb and TheTVDB give each episode its own community score, so episode thumbnails get a star badge just like posters. Critic scores for single episodes are rare, so that badge usually stays away on episodes. Episodes that Jellyfin has no rating for simply get no rating badge.
 </details>
 
 <details>

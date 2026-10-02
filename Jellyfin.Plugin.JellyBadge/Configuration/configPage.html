@@ -131,6 +131,7 @@
                 position: relative; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; margin: 0.8em 0;
                 background: rgba(128, 128, 128, 0.15); display: grid; place-items: center; text-align: center;
             }
+            #JellyBadgeConfigPage .jb-frame.wide { aspect-ratio: 16 / 9; }
             #JellyBadgeConfigPage .jb-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
             #JellyBadgeConfigPage .jb-frame.loading::after {
                 content: ""; position: absolute; inset: 0;
@@ -231,6 +232,11 @@
                             <h2>Libraries</h2>
                             <p class="jb-hint" id="jbLibHint"></p>
                             <div class="jb-libs" id="jbLibs" role="group" aria-label="Libraries"></div>
+                            <button type="button" class="jb-tile" role="switch" id="jbEpisodes" data-key="BadgeEpisodes" aria-checked="false" style="margin-top:1em;width:100%;">
+                                <span class="jb-chip">S1 E4</span>
+                                <span class="jb-tile-text"><b>Episode thumbnails</b><small>Badge each episode with its own quality and rating.</small></span>
+                                <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
+                            </button>
                         </section>
 
                         <section class="jb-card jb-danger">
@@ -246,7 +252,7 @@
                         <section class="jb-card">
                             <h2>Live preview</h2>
                             <div class="jb-search">
-                                <input type="search" id="jbSearch" placeholder="Search a movie or series" autocomplete="off" aria-label="Search a movie or series" />
+                                <input type="search" id="jbSearch" placeholder="Search a movie, series or episode" autocomplete="off" aria-label="Search a movie, series or episode" />
                                 <div class="jb-results" id="jbResults" hidden></div>
                             </div>
                             <div class="jb-frame" id="jbFrame"><div class="jb-empty">Pick a movie or series to see your badges on its poster.</div></div>
@@ -332,6 +338,8 @@
                             '<span class="jb-switch" aria-hidden="true" aria-checked="' + !!config[b[0]] + '"></span></button>';
                     }).join('');
 
+                    [$('jbEpisodes'), $('jbEpisodes').querySelector('.jb-switch')].forEach(function (el) { el.setAttribute('aria-checked', String(!!config.BadgeEpisodes)); });
+
                     $('jbPoster').innerHTML = positions.map(function (p) {
                         return choice('jb-spot ' + p[1], p[0], config.Position, '', p[2]);
                     }).join('');
@@ -403,6 +411,7 @@
 
                 function selectItem(next) {
                     item = next;
+                    $('jbFrame').classList.toggle('wide', next.Type === 'Episode');
                     if (originalUrl) { URL.revokeObjectURL(originalUrl); originalUrl = null; }
                     $('jbResults').hidden = true;
                     $('jbSearch').value = next.Name;
@@ -412,7 +421,7 @@
                 function search(term) {
                     return ApiClient.getItems(ApiClient.getCurrentUserId(), {
                         SearchTerm: term || undefined,
-                        IncludeItemTypes: 'Movie,Series',
+                        IncludeItemTypes: config && config.BadgeEpisodes && term ? 'Movie,Series,Episode' : 'Movie,Series',
                         Recursive: true,
                         ImageTypes: 'Primary',
                         SortBy: term ? 'SortName' : 'DateCreated',
@@ -504,7 +513,7 @@
                                 var thumb = ApiClient.getScaledImageUrl(i.Id, { type: 'Primary', maxHeight: 102, tag: i.ImageTags && i.ImageTags.Primary });
                                 return '<button type="button" class="jb-result" data-index="' + index + '">' +
                                     '<img alt="" loading="lazy" src="' + thumb + '" /><span>' + esc(i.Name) +
-                                    '<small>' + (i.ProductionYear || '') + (i.Type === 'Series' ? ' · Series' : '') + '</small></span></button>';
+                                    '<small>' + (i.Type === 'Episode' ? esc(i.SeriesName) + ' · S' + (i.ParentIndexNumber || 0) + ' E' + (i.IndexNumber || 0) : (i.ProductionYear || '') + (i.Type === 'Series' ? ' · Series' : '')) + '</small></span></button>';
                             }).join('') || '<div class="jb-empty">Nothing found.</div>';
                             $('jbResults').hidden = false;
                         });
@@ -525,7 +534,7 @@
                         saved = JSON.stringify(config);
                         render();
                         renderLibraries(results[1]);
-                        if (results[2].Items.length) { selectItem({ Id: results[2].Items[0].Id, Name: results[2].Items[0].Name }); }
+                        if (results[2].Items.length) { selectItem(results[2].Items[0]); }
                         Dashboard.hideLoadingMsg();
                     });
                 });

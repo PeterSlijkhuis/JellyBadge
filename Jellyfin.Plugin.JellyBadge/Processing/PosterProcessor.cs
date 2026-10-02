@@ -77,13 +77,13 @@ public sealed class PosterProcessor : IDisposable
     }
 
     /// <summary>
-    /// Whether this item is a movie or series in an included library.
+    /// Whether this item is a movie, series or (when switched on) episode in an included library.
     /// </summary>
     /// <param name="item">The item.</param>
     /// <returns>True if it should be badged.</returns>
     public bool IsCandidate(BaseItem item)
     {
-        if (item is not (Movie or Series) || item.IsVirtualItem)
+        if (item is not (Movie or Series or Episode) || item.IsVirtualItem || (item is Episode && !Config.BadgeEpisodes))
         {
             return false;
         }
@@ -101,7 +101,7 @@ public sealed class PosterProcessor : IDisposable
     /// <returns>A task.</returns>
     public async Task ProcessAsync(BaseItem item, CancellationToken cancellationToken)
     {
-        if (!Config.Enabled || !IsCandidate(item) || !_busy.TryAdd(item.Id, 0))
+        if (!Config.Enabled || !_busy.TryAdd(item.Id, 0))
         {
             return;
         }
@@ -109,7 +109,17 @@ public sealed class PosterProcessor : IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await ProcessCoreAsync(item, cancellationToken).ConfigureAwait(false);
+            if (IsCandidate(item))
+            {
+                await ProcessCoreAsync(item, cancellationToken).ConfigureAwait(false);
+            }
+            else if (LoadState(item.Id) is { } state)
+            {
+                // Excluded since we badged it (episodes switched off, library deselected): put its original back.
+                await RestoreAsync(item, state, cancellationToken).ConfigureAwait(false);
+                File.Delete(OriginalFile(item.Id, state));
+                File.Delete(StateFile(item.Id));
+            }
         }
         finally
         {
