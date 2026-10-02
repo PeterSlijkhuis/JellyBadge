@@ -1,0 +1,4 @@
+[
+  { "Type": "Video", "Codec": "hevc", "Width": 1280, "Height": 720, "ColorSpace": "bt2020nc", "ColorTransfer": "arib-std-b67", "ColorPrimaries": "bt2020" },
+  { "Type": "Audio", "Codec": "eac3", "Profile": "Dolby Digital Plus + Dolby Atmos", "Channels": 6 }
+]

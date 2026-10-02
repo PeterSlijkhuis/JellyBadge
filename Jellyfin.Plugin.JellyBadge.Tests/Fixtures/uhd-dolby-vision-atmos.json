@@ -1,0 +1,7 @@
+[
+  { "Type": "Video", "Codec": "hevc", "Width": 3840, "Height": 1608, "ColorSpace": "bt2020nc", "ColorTransfer": "smpte2084", "ColorPrimaries": "bt2020",
+    "DvProfile": 8, "DvBlSignalCompatibilityId": 1, "RpuPresentFlag": 1, "BlPresentFlag": 1 },
+  { "Type": "Audio", "Codec": "truehd", "Profile": "Dolby TrueHD + Dolby Atmos", "Channels": 8, "Language": "eng" },
+  { "Type": "Audio", "Codec": "ac3", "Channels": 6, "Language": "eng" },
+  { "Type": "Subtitle", "Codec": "subrip", "Language": "eng" }
+]

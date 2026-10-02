@@ -1,0 +1,4 @@
+[
+  { "Type": "Video", "Codec": "hevc", "Width": 1920, "Height": 1080, "ColorSpace": "bt2020nc", "ColorTransfer": "smpte2084", "ColorPrimaries": "bt2020", "Hdr10PlusPresentFlag": true },
+  { "Type": "Audio", "Codec": "dts", "Profile": "DTS-HD MA + DTS:X", "Channels": 8 }
+]

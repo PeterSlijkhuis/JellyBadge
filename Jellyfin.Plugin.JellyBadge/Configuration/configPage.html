@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JellyBadge</title>
+</head>
+<body>
+    <div id="JellyBadgeConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="JellyBadgeConfigForm">
+                    <h2 class="sectionTitle">JellyBadge</h2>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="Enabled" type="checkbox" is="emby-checkbox" />
+                            <span>Enable badges</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Badges are applied when items are added or updated, and by the daily scheduled task. Originals are backed up first.</div>
+                    </div>
+
+                    <h3 class="sectionTitle">Badges</h3>
+                    <div id="Toggles"></div>
+
+                    <h3 class="sectionTitle">Layout</h3>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="Position">Position</label>
+                        <select is="emby-select" id="Position" class="emby-select-withcolor emby-select">
+                            <option value="TopLeft">Top left</option>
+                            <option value="TopRight">Top right</option>
+                            <option value="BottomLeft">Bottom left</option>
+                            <option value="BottomRight">Bottom right</option>
+                            <option value="TopStrip">Strip along the top</option>
+                            <option value="BottomStrip">Strip along the bottom</option>
+                        </select>
+                    </div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="Size">Size</label>
+                        <select is="emby-select" id="Size" class="emby-select-withcolor emby-select">
+                            <option value="Small">Small</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Large">Large</option>
+                        </select>
+                    </div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="Style">Style</label>
+                        <select is="emby-select" id="Style" class="emby-select-withcolor emby-select">
+                            <option value="Pill">Pill</option>
+                            <option value="Square">Square</option>
+                            <option value="Minimal">Minimal</option>
+                        </select>
+                    </div>
+
+                    <h3 class="sectionTitle">Libraries</h3>
+                    <div class="fieldDescription">Leave all unchecked to include every library.</div>
+                    <div id="Libraries"></div>
+
+                    <h3 class="sectionTitle">Preview</h3>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PreviewSearch">Search a movie or series</label>
+                        <input id="PreviewSearch" type="text" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="selectContainer">
+                        <label class="selectLabel" for="PreviewItem">Item</label>
+                        <select is="emby-select" id="PreviewItem" class="emby-select-withcolor emby-select"></select>
+                    </div>
+                    <button is="emby-button" type="button" id="PreviewButton" class="raised emby-button"><span>Show preview</span></button>
+                    <div class="fieldDescription">Uses the settings on this page, saved or not. Nothing is written.</div>
+                    <img id="PreviewImage" alt="" style="display:none;max-width:300px;width:100%;margin-top:1em;border-radius:4px;" />
+
+                    <div style="margin-top:2em;">
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button"><span>Save</span></button>
+                        <button is="emby-button" type="button" id="ApplyButton" class="raised block emby-button"><span>Save and apply to library now</span></button>
+                        <button is="emby-button" type="button" id="RestoreButton" class="raised block emby-button"><span>Remove all badges and restore originals</span></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                var pluginId = '9d421997-eadd-4434-a275-a4e85fb3771c';
+                var page = document.querySelector('#JellyBadgeConfigPage');
+                var toggles = [
+                    ['ShowResolution', 'Resolution (4K, 1080p, 720p, SD)'],
+                    ['ShowDynamicRange', 'Dynamic range (Dolby Vision, HDR10+, HDR10, HLG)'],
+                    ['ShowAudioFormat', 'Audio format (Atmos, DTS:X, TrueHD, DTS-HD MA)'],
+                    ['ShowAudioChannels', 'Audio channels (7.1, 5.1)'],
+                    ['ShowCommunityRating', 'Community rating'],
+                    ['ShowCriticRating', 'Critic rating']
+                ];
+
+                function $(selector) { return page.querySelector(selector); }
+
+                function checkbox(id, label, checked) {
+                    return '<label class="emby-checkbox-label"><input type="checkbox" is="emby-checkbox" data-id="' + id + '"' +
+                        (checked ? ' checked' : '') + ' /><span>' + label + '</span></label>';
+                }
+
+                function escapeHtml(text) {
+                    var div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                }
+
+                function readForm(config) {
+                    config.Enabled = $('#Enabled').checked;
+                    toggles.forEach(function (t) { config[t[0]] = $('#Toggles [data-id="' + t[0] + '"]').checked; });
+                    config.Position = $('#Position').value;
+                    config.Size = $('#Size').value;
+                    config.Style = $('#Style').value;
+                    config.Libraries = Array.prototype.map.call(page.querySelectorAll('#Libraries input:checked'), function (c) { return c.getAttribute('data-id'); });
+                    return config;
+                }
+
+                function call(method, path, body) {
+                    return fetch(ApiClient.getUrl(path), {
+                        method: method,
+                        headers: {
+                            'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"',
+                            'Content-Type': 'application/json'
+                        },
+                        body: body ? JSON.stringify(body) : undefined
+                    }).then(function (response) {
+                        if (!response.ok) { throw new Error(response.status); }
+                        return response;
+                    });
+                }
+
+                function save() {
+                    Dashboard.showLoadingMsg();
+                    return ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        return ApiClient.updatePluginConfiguration(pluginId, readForm(config));
+                    }).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    });
+                }
+
+                page.addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+                    Promise.all([ApiClient.getPluginConfiguration(pluginId), ApiClient.getVirtualFolders()]).then(function (results) {
+                        var config = results[0];
+                        $('#Enabled').checked = config.Enabled;
+                        $('#Toggles').innerHTML = toggles.map(function (t) { return checkbox(t[0], t[1], config[t[0]]); }).join('');
+                        $('#Position').value = config.Position;
+                        $('#Size').value = config.Size;
+                        $('#Style').value = config.Style;
+                        $('#Libraries').innerHTML = results[1]
+                            .filter(function (f) { return !f.CollectionType || f.CollectionType === 'movies' || f.CollectionType === 'tvshows' || f.CollectionType === 'mixed'; })
+                            .map(function (f) { return checkbox(f.ItemId, escapeHtml(f.Name), config.Libraries.indexOf(f.ItemId) !== -1); })
+                            .join('');
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+                var searchTimer;
+                $('#PreviewSearch').addEventListener('input', function (e) {
+                    clearTimeout(searchTimer);
+                    searchTimer = setTimeout(function () {
+                        ApiClient.getItems(ApiClient.getCurrentUserId(), {
+                            SearchTerm: e.target.value,
+                            IncludeItemTypes: 'Movie,Series',
+                            Recursive: true,
+                            Limit: 20
+                        }).then(function (result) {
+                            $('#PreviewItem').innerHTML = result.Items.map(function (i) {
+                                return '<option value="' + i.Id + '">' + escapeHtml(i.Name + (i.ProductionYear ? ' (' + i.ProductionYear + ')' : '')) + '</option>';
+                            }).join('');
+                        });
+                    }, 300);
+                });
+
+                $('#PreviewButton').addEventListener('click', function () {
+                    var id = $('#PreviewItem').value;
+                    if (!id) { return; }
+                    Dashboard.showLoadingMsg();
+                    call('POST', 'JellyBadge/Preview/' + id, readForm({}))
+                        .then(function (response) { return response.blob(); })
+                        .then(function (blob) {
+                            var img = $('#PreviewImage');
+                            if (img.src) { URL.revokeObjectURL(img.src); }
+                            img.src = URL.createObjectURL(blob);
+                            img.style.display = 'block';
+                        })
+                        .catch(function () { Dashboard.alert('This item has no poster to preview.'); })
+                        .finally(function () { Dashboard.hideLoadingMsg(); });
+                });
+
+                $('#JellyBadgeConfigForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    save();
+                    return false;
+                });
+
+                $('#ApplyButton').addEventListener('click', function () {
+                    if (!$('#Enabled').checked) {
+                        Dashboard.alert('Turn on "Enable badges" first.');
+                        return;
+                    }
+                    save().then(function () {
+                        return ApiClient.getScheduledTasks({ isHidden: false });
+                    }).then(function (tasks) {
+                        var task = tasks.filter(function (t) { return t.Key === 'JellyBadgeApply'; })[0];
+                        return ApiClient.startScheduledTask(task.Id);
+                    }).then(function () {
+                        Dashboard.alert('Badging started. Progress shows under Scheduled Tasks.');
+                    });
+                });
+
+                $('#RestoreButton').addEventListener('click', function () {
+                    if (!window.confirm('Remove all badges, restore every original poster and turn JellyBadge off?')) { return; }
+                    Dashboard.showLoadingMsg();
+                    call('POST', 'JellyBadge/RestoreAll')
+                        .then(function (response) { return response.json(); })
+                        .then(function (count) {
+                            $('#Enabled').checked = false;
+                            Dashboard.alert('Restored ' + count + ' posters. JellyBadge is now off.');
+                        })
+                        .catch(function () { Dashboard.alert('Restoring failed. Check the server log.'); })
+                        .finally(function () { Dashboard.hideLoadingMsg(); });
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>
