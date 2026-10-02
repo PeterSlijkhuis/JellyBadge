@@ -169,7 +169,7 @@ It treats your new poster as the original, backs it up and adds badges to it. If
 <details>
 <summary><b>Will it slow down my server or library scans?</b></summary>
 
-No. Library events only add the item to a queue. The work happens in the background, two posters at a time by default, and items whose poster, settings and media did not change are skipped.
+No. Library events only add the item to a queue. The work happens in the background, two posters at a time by default, and items whose poster, settings and media did not change are skipped without even opening the image. New movies, shows and episodes are badged as soon as Jellyfin has their artwork, without waiting for the daily task.
 </details>
 
 <details>
