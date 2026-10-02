@@ -50,6 +50,18 @@ public class JellyBadgeController : ControllerBase
     }
 
     /// <summary>
+    /// The badge font, so the settings page shows the same lettering as the posters.
+    /// </summary>
+    /// <returns>The font file.</returns>
+    [HttpGet("Font")]
+    [AllowAnonymous]
+    public ActionResult Font()
+    {
+        var font = typeof(JellyBadgeController).Assembly.GetManifestResourceStream("Jellyfin.Plugin.JellyBadge.Rendering.Fonts.BarlowCondensed-Bold.ttf")!;
+        return File(font, "font/ttf");
+    }
+
+    /// <summary>
     /// Turns badging off and restores every original poster.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>

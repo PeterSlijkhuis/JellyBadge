@@ -5,218 +5,529 @@
     <title>JellyBadge</title>
 </head>
 <body>
-    <div id="JellyBadgeConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+    <div id="JellyBadgeConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button">
+        <style>
+            /* Everything is scoped to this page so nothing leaks into the rest of the dashboard. */
+            @font-face { font-family: "JellyBadge"; font-weight: 700; src: url("../JellyBadge/Font") format("truetype"); }
+            #JellyBadgeConfigPage {
+                --jb-accent: #00a4dc;
+                --jb-accent-2: #aa5cc3;
+                --jb-line: rgba(128, 128, 128, 0.22);
+                --jb-card: rgba(128, 128, 128, 0.07);
+                --jb-muted: rgba(128, 128, 128, 0.95);
+                --jb-radius: 14px;
+            }
+            #JellyBadgeConfigPage .content-primary { max-width: 1240px; padding-bottom: 6em; }
+            #JellyBadgeConfigPage .jb-hero {
+                display: flex; align-items: center; gap: 1.2em; flex-wrap: wrap;
+                padding: 1.4em 1.6em; margin: 1em 0 1.4em; border-radius: var(--jb-radius);
+                background: linear-gradient(120deg, rgba(170, 92, 195, 0.28), rgba(0, 164, 220, 0.22));
+                border: 1px solid var(--jb-line);
+            }
+            #JellyBadgeConfigPage .jb-logo {
+                width: 54px; height: 54px; border-radius: 14px; flex: none;
+                display: grid; place-items: center; font-weight: 700; font-size: 1.05em; color: #fff;
+                background: linear-gradient(135deg, var(--jb-accent-2), var(--jb-accent));
+                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+            }
+            #JellyBadgeConfigPage .jb-hero h1 { margin: 0; font-size: 1.7em; font-weight: 600; }
+            #JellyBadgeConfigPage .jb-hero p { margin: 0.2em 0 0; opacity: 0.8; }
+            #JellyBadgeConfigPage .jb-hero-text { flex: 1 1 260px; }
+            #JellyBadgeConfigPage .jb-master {
+                display: flex; align-items: center; gap: 0.8em; padding: 0.6em 0.9em;
+                border-radius: 999px; background: rgba(0, 0, 0, 0.18); border: 1px solid var(--jb-line);
+            }
+            #JellyBadgeConfigPage .jb-state { font-weight: 600; min-width: 4.5em; }
+
+            #JellyBadgeConfigPage .jb-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1.4em; align-items: start; }
+            @media (max-width: 1000px) {
+                #JellyBadgeConfigPage .jb-layout { grid-template-columns: minmax(0, 1fr); }
+                #JellyBadgeConfigPage .jb-side { position: static !important; order: -1; }
+                #JellyBadgeConfigPage .jb-frame { max-width: 240px; margin-left: auto; margin-right: auto; }
+            }
+            #JellyBadgeConfigPage .jb-card {
+                background: var(--jb-card); border: 1px solid var(--jb-line); border-radius: var(--jb-radius);
+                padding: 1.3em 1.4em; margin-bottom: 1.2em;
+            }
+            #JellyBadgeConfigPage .jb-card h2 { margin: 0 0 0.25em; font-size: 1.15em; font-weight: 600; }
+            #JellyBadgeConfigPage .jb-hint { margin: 0 0 1em; opacity: 0.7; font-size: 0.92em; }
+
+            /* Switch */
+            #JellyBadgeConfigPage .jb-switch { position: relative; width: 46px; height: 26px; flex: none; border: 0; padding: 0; border-radius: 999px; cursor: pointer; background: rgba(128, 128, 128, 0.45); transition: background 0.2s; }
+            #JellyBadgeConfigPage .jb-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); }
+            #JellyBadgeConfigPage .jb-switch[aria-checked="true"] { background: var(--jb-accent); }
+            #JellyBadgeConfigPage .jb-switch[aria-checked="true"]::after { transform: translateX(20px); }
+            #JellyBadgeConfigPage button:focus-visible { outline: 2px solid var(--jb-accent); outline-offset: 2px; }
+
+            /* Badge tiles */
+            #JellyBadgeConfigPage .jb-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 0.7em; }
+            #JellyBadgeConfigPage .jb-tile {
+                display: flex; align-items: center; gap: 0.8em; padding: 0.8em 0.9em; text-align: left; width: 100%;
+                border-radius: 12px; border: 1px solid var(--jb-line); background: transparent; color: inherit; cursor: pointer; font: inherit;
+                transition: border-color 0.15s, background 0.15s;
+            }
+            #JellyBadgeConfigPage .jb-tile:hover { border-color: rgba(0, 164, 220, 0.6); }
+            #JellyBadgeConfigPage .jb-tile[aria-checked="true"] { border-color: var(--jb-accent); background: rgba(0, 164, 220, 0.1); }
+            #JellyBadgeConfigPage .jb-tile-text { flex: 1; min-width: 0; }
+            #JellyBadgeConfigPage .jb-tile-text b { display: block; font-weight: 600; }
+            #JellyBadgeConfigPage .jb-tile-text small { opacity: 0.65; }
+            #JellyBadgeConfigPage .jb-chip {
+                font-family: "JellyBadge", "Arial Narrow", sans-serif; font-weight: 700; letter-spacing: 0.02em;
+                display: inline-flex; align-items: center; gap: 0.25em; white-space: nowrap; flex: none;
+                padding: 0.18em 0.6em; border-radius: 999px; color: #fff; font-size: 0.95em;
+                background: rgba(12, 12, 12, 0.78); border: 1px solid rgba(255, 255, 255, 0.22);
+            }
+            #JellyBadgeConfigPage .jb-tile[aria-checked="false"] .jb-chip { opacity: 0.35; }
+            #JellyBadgeConfigPage .jb-tile .jb-switch { pointer-events: none; }
+
+            /* Position picker */
+            #JellyBadgeConfigPage .jb-place { display: flex; gap: 1.6em; align-items: center; flex-wrap: wrap; }
+            #JellyBadgeConfigPage .jb-poster {
+                position: relative; width: 150px; aspect-ratio: 2 / 3; border-radius: 10px; flex: none;
+                background: linear-gradient(160deg, #3b4a7a, #1b2238 60%, #0f1320); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+            }
+            #JellyBadgeConfigPage .jb-spot {
+                position: absolute; border: 2px dashed rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.06);
+                border-radius: 8px; cursor: pointer; padding: 0; transition: background 0.15s, border-color 0.15s;
+            }
+            #JellyBadgeConfigPage .jb-spot:hover { background: rgba(0, 164, 220, 0.25); border-color: #fff; }
+            #JellyBadgeConfigPage .jb-spot[aria-checked="true"] { background: var(--jb-accent); border: 2px solid #fff; }
+            #JellyBadgeConfigPage .jb-spot.corner { width: 32%; height: 22%; }
+            #JellyBadgeConfigPage .jb-spot.strip { left: 6%; right: 6%; height: 12%; }
+            #JellyBadgeConfigPage .jb-spot.tl { top: 14%; left: 6%; }
+            #JellyBadgeConfigPage .jb-spot.tr { top: 14%; right: 6%; }
+            #JellyBadgeConfigPage .jb-spot.bl { bottom: 14%; left: 6%; }
+            #JellyBadgeConfigPage .jb-spot.br { bottom: 14%; right: 6%; }
+            #JellyBadgeConfigPage .jb-spot.ts { top: 0; }
+            #JellyBadgeConfigPage .jb-spot.bs { bottom: 0; }
+            #JellyBadgeConfigPage .jb-place-label { font-size: 1.1em; font-weight: 600; }
+
+            /* Segmented choices */
+            #JellyBadgeConfigPage .jb-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.4em; }
+            #JellyBadgeConfigPage .jb-label { display: block; margin-bottom: 0.5em; font-weight: 600; opacity: 0.85; }
+            #JellyBadgeConfigPage .jb-seg { display: flex; gap: 0.5em; flex-wrap: wrap; }
+            #JellyBadgeConfigPage .jb-opt {
+                flex: 1 1 0; min-width: 80px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0.5em;
+                padding: 0.8em 0.6em; border-radius: 12px; border: 1px solid var(--jb-line); background: transparent;
+                color: inherit; font: inherit; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+            }
+            #JellyBadgeConfigPage .jb-opt:hover { border-color: rgba(0, 164, 220, 0.6); }
+            #JellyBadgeConfigPage .jb-opt[aria-checked="true"] { border-color: var(--jb-accent); background: rgba(0, 164, 220, 0.1); }
+            #JellyBadgeConfigPage .jb-sample { padding: 0.5em 0.8em; border-radius: 8px; background: linear-gradient(135deg, #556, #223); }
+            #JellyBadgeConfigPage .jb-chip.square { border-radius: 5px; }
+            #JellyBadgeConfigPage .jb-chip.minimal { background: none; border-color: transparent; text-shadow: 0 0 6px #000, 0 0 2px #000; }
+
+            /* Library chips */
+            #JellyBadgeConfigPage .jb-libs { display: flex; flex-wrap: wrap; gap: 0.5em; }
+            #JellyBadgeConfigPage .jb-lib {
+                padding: 0.5em 1em; border-radius: 999px; border: 1px solid var(--jb-line); background: transparent;
+                color: inherit; font: inherit; cursor: pointer;
+            }
+            #JellyBadgeConfigPage .jb-lib[aria-checked="true"] { background: var(--jb-accent); border-color: var(--jb-accent); color: #fff; }
+
+            /* Preview */
+            #JellyBadgeConfigPage .jb-side { position: sticky; top: 5em; }
+            #JellyBadgeConfigPage .jb-frame {
+                position: relative; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; margin: 0.8em 0;
+                background: rgba(128, 128, 128, 0.15); display: grid; place-items: center; text-align: center;
+            }
+            #JellyBadgeConfigPage .jb-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+            #JellyBadgeConfigPage .jb-frame.loading::after {
+                content: ""; position: absolute; inset: 0;
+                background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.12) 50%, transparent 70%);
+                background-size: 200% 100%; animation: jb-shimmer 1.1s infinite linear;
+            }
+            @keyframes jb-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+            #JellyBadgeConfigPage .jb-empty { padding: 1.5em; opacity: 0.7; }
+            #JellyBadgeConfigPage .jb-search { position: relative; }
+            #JellyBadgeConfigPage .jb-search input {
+                width: 100%; box-sizing: border-box; padding: 0.7em 0.9em; border-radius: 10px; font: inherit;
+                border: 1px solid var(--jb-line); background: rgba(128, 128, 128, 0.1); color: inherit;
+            }
+            #JellyBadgeConfigPage .jb-search input:focus { outline: none; border-color: var(--jb-accent); }
+            #JellyBadgeConfigPage .jb-results {
+                position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); max-height: 320px; overflow: auto;
+                border-radius: 10px; border: 1px solid var(--jb-line); background: #1c1c1e; color: #fff; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+            }
+            #JellyBadgeConfigPage .jb-result {
+                display: flex; gap: 0.7em; align-items: center; width: 100%; padding: 0.45em 0.6em; text-align: left;
+                border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer;
+            }
+            #JellyBadgeConfigPage .jb-result:hover, #JellyBadgeConfigPage .jb-result:focus { background: rgba(0, 164, 220, 0.25); }
+            #JellyBadgeConfigPage .jb-result img { width: 34px; height: 51px; object-fit: cover; border-radius: 4px; background: #333; flex: none; }
+            #JellyBadgeConfigPage .jb-result small { opacity: 0.6; display: block; }
+            #JellyBadgeConfigPage .jb-compare { display: flex; justify-content: space-between; align-items: center; gap: 0.6em; }
+            #JellyBadgeConfigPage .jb-caption { font-size: 0.88em; opacity: 0.7; }
+
+            /* Danger zone and action bar */
+            #JellyBadgeConfigPage .jb-danger { border-color: rgba(220, 70, 70, 0.45); }
+            #JellyBadgeConfigPage .jb-danger-row { display: flex; gap: 1em; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+            #JellyBadgeConfigPage .jb-btn {
+                padding: 0.75em 1.3em; border-radius: 10px; border: 1px solid var(--jb-line); font: inherit; font-weight: 600;
+                cursor: pointer; background: rgba(128, 128, 128, 0.15); color: inherit;
+            }
+            #JellyBadgeConfigPage .jb-btn.primary { background: linear-gradient(135deg, var(--jb-accent-2), var(--jb-accent)); border-color: transparent; color: #fff; }
+            #JellyBadgeConfigPage .jb-btn.danger { background: transparent; border-color: rgba(220, 70, 70, 0.7); color: #e05a5a; }
+            #JellyBadgeConfigPage .jb-btn:disabled { opacity: 0.5; cursor: default; }
+            #JellyBadgeConfigPage .jb-bar {
+                position: sticky; bottom: 1em; z-index: 4; display: flex; gap: 0.7em; align-items: center; justify-content: flex-end; flex-wrap: wrap;
+                padding: 0.8em 1em; border-radius: var(--jb-radius); border: 1px solid var(--jb-line);
+                background: rgba(20, 20, 22, 0.92); color: #fff; backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+            }
+            #JellyBadgeConfigPage .jb-dirty { margin-right: auto; opacity: 0.85; font-size: 0.92em; }
+            #JellyBadgeConfigPage .jb-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #f0b429; margin-right: 0.5em; }
+        </style>
+
         <div data-role="content">
             <div class="content-primary">
-                <form id="JellyBadgeConfigForm">
-                    <h2 class="sectionTitle">JellyBadge</h2>
+                <div class="jb-hero">
+                    <div class="jb-logo" aria-hidden="true">4K</div>
+                    <div class="jb-hero-text">
+                        <h1>JellyBadge</h1>
+                        <p>Quality and rating badges on your posters, visible in every Jellyfin app.</p>
+                    </div>
+                    <div class="jb-master">
+                        <span class="jb-state" id="jbState">Off</span>
+                        <button type="button" class="jb-switch" role="switch" id="jbEnabled" aria-checked="false" aria-label="Enable badges"></button>
+                    </div>
+                </div>
 
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="Enabled" type="checkbox" is="emby-checkbox" />
-                            <span>Enable badges</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Badges are applied when items are added or updated, and by the daily scheduled task. Originals are backed up first.</div>
+                <div class="jb-layout">
+                    <div>
+                        <section class="jb-card">
+                            <h2>Badges</h2>
+                            <p class="jb-hint">Pick what to show. Each badge only appears when the item actually has it.</p>
+                            <div class="jb-tiles" id="jbTiles" role="group" aria-label="Badges"></div>
+                        </section>
+
+                        <section class="jb-card">
+                            <h2>Placement</h2>
+                            <p class="jb-hint">Click a spot on the poster.</p>
+                            <div class="jb-place">
+                                <div class="jb-poster" id="jbPoster" role="radiogroup" aria-label="Badge position"></div>
+                                <div>
+                                    <div class="jb-place-label" id="jbPlaceLabel"></div>
+                                    <div class="jb-hint" id="jbPlaceHint" style="margin-top:0.4em;"></div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="jb-card">
+                            <h2>Look</h2>
+                            <p class="jb-hint">Badges scale with the poster, so they stay readable on a TV and on a phone.</p>
+                            <div class="jb-row">
+                                <div>
+                                    <span class="jb-label">Style</span>
+                                    <div class="jb-seg" id="jbStyle" role="radiogroup" aria-label="Style"></div>
+                                </div>
+                                <div>
+                                    <span class="jb-label">Size</span>
+                                    <div class="jb-seg" id="jbSize" role="radiogroup" aria-label="Size"></div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="jb-card">
+                            <h2>Libraries</h2>
+                            <p class="jb-hint" id="jbLibHint"></p>
+                            <div class="jb-libs" id="jbLibs" role="group" aria-label="Libraries"></div>
+                        </section>
+
+                        <section class="jb-card jb-danger">
+                            <h2>Remove all badges</h2>
+                            <div class="jb-danger-row">
+                                <p class="jb-hint" style="margin:0;flex:1 1 300px;">Puts every original poster back, deletes the backups and turns JellyBadge off. Do this before uninstalling.</p>
+                                <button type="button" class="jb-btn danger" id="jbRestore">Restore originals</button>
+                            </div>
+                        </section>
                     </div>
 
-                    <h3 class="sectionTitle">Badges</h3>
-                    <div id="Toggles"></div>
+                    <aside class="jb-side">
+                        <section class="jb-card">
+                            <h2>Live preview</h2>
+                            <div class="jb-search">
+                                <input type="search" id="jbSearch" placeholder="Search a movie or series" autocomplete="off" aria-label="Search a movie or series" />
+                                <div class="jb-results" id="jbResults" hidden></div>
+                            </div>
+                            <div class="jb-frame" id="jbFrame"><div class="jb-empty">Pick a movie or series to see your badges on its poster.</div></div>
+                            <div class="jb-compare">
+                                <span class="jb-caption" id="jbCaption">Nothing is saved while previewing.</span>
+                                <button type="button" class="jb-btn" id="jbCompare" style="padding:0.5em 0.9em;white-space:nowrap;" disabled>Hold to compare</button>
+                            </div>
+                        </section>
+                    </aside>
+                </div>
 
-                    <h3 class="sectionTitle">Layout</h3>
-                    <div class="selectContainer">
-                        <label class="selectLabel" for="Position">Position</label>
-                        <select is="emby-select" id="Position" class="emby-select-withcolor emby-select">
-                            <option value="TopLeft">Top left</option>
-                            <option value="TopRight">Top right</option>
-                            <option value="BottomLeft">Bottom left</option>
-                            <option value="BottomRight">Bottom right</option>
-                            <option value="TopStrip">Strip along the top</option>
-                            <option value="BottomStrip">Strip along the bottom</option>
-                        </select>
-                    </div>
-                    <div class="selectContainer">
-                        <label class="selectLabel" for="Size">Size</label>
-                        <select is="emby-select" id="Size" class="emby-select-withcolor emby-select">
-                            <option value="Small">Small</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Large">Large</option>
-                        </select>
-                    </div>
-                    <div class="selectContainer">
-                        <label class="selectLabel" for="Style">Style</label>
-                        <select is="emby-select" id="Style" class="emby-select-withcolor emby-select">
-                            <option value="Pill">Pill</option>
-                            <option value="Square">Square</option>
-                            <option value="Minimal">Minimal</option>
-                        </select>
-                    </div>
-
-                    <h3 class="sectionTitle">Libraries</h3>
-                    <div class="fieldDescription">Leave all unchecked to include every library.</div>
-                    <div id="Libraries"></div>
-
-                    <h3 class="sectionTitle">Preview</h3>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="PreviewSearch">Search a movie or series</label>
-                        <input id="PreviewSearch" type="text" is="emby-input" autocomplete="off" />
-                    </div>
-                    <div class="selectContainer">
-                        <label class="selectLabel" for="PreviewItem">Item</label>
-                        <select is="emby-select" id="PreviewItem" class="emby-select-withcolor emby-select"></select>
-                    </div>
-                    <button is="emby-button" type="button" id="PreviewButton" class="raised emby-button"><span>Show preview</span></button>
-                    <div class="fieldDescription">Uses the settings on this page, saved or not. Nothing is written.</div>
-                    <img id="PreviewImage" alt="" style="display:none;max-width:300px;width:100%;margin-top:1em;border-radius:4px;" />
-
-                    <div style="margin-top:2em;">
-                        <button is="emby-button" type="submit" class="raised button-submit block emby-button"><span>Save</span></button>
-                        <button is="emby-button" type="button" id="ApplyButton" class="raised block emby-button"><span>Save and apply to library now</span></button>
-                        <button is="emby-button" type="button" id="RestoreButton" class="raised block emby-button"><span>Remove all badges and restore originals</span></button>
-                    </div>
-                </form>
+                <div class="jb-bar">
+                    <span class="jb-dirty" id="jbDirty"></span>
+                    <button type="button" class="jb-btn" id="jbApply">Save and apply now</button>
+                    <button type="button" class="jb-btn primary" id="jbSave">Save</button>
+                </div>
             </div>
         </div>
+
         <script type="text/javascript">
             (function () {
                 var pluginId = '9d421997-eadd-4434-a275-a4e85fb3771c';
                 var page = document.querySelector('#JellyBadgeConfigPage');
-                var toggles = [
-                    ['ShowResolution', 'Resolution (4K, 1080p, 720p, SD)'],
-                    ['ShowDynamicRange', 'Dynamic range (Dolby Vision, HDR10+, HDR10, HLG)'],
-                    ['ShowAudioFormat', 'Audio format (Atmos, DTS:X, TrueHD, DTS-HD MA)'],
-                    ['ShowAudioChannels', 'Audio channels (7.1, 5.1)'],
-                    ['ShowCommunityRating', 'Community rating'],
-                    ['ShowCriticRating', 'Critic rating']
+                var badges = [
+                    ['ShowResolution', 'Resolution', '4K, 1080p, 720p, SD', '4K'],
+                    ['ShowDynamicRange', 'Dynamic range', 'Dolby Vision, HDR10+, HDR10, HLG', 'HDR10+'],
+                    ['ShowAudioFormat', 'Audio format', 'Atmos, DTS:X, TrueHD, DTS-HD MA', 'ATMOS'],
+                    ['ShowAudioChannels', 'Audio channels', '7.1, 5.1', '7.1'],
+                    ['ShowCommunityRating', 'Community rating', 'Score out of 10', '★ 7.8'],
+                    ['ShowCriticRating', 'Critic rating', 'Percentage', '✓ 92%']
                 ];
+                var positions = [
+                    ['TopLeft', 'corner tl', 'Top left', 'Stacked in the corner.'],
+                    ['TopRight', 'corner tr', 'Top right', 'Stacked in the corner.'],
+                    ['BottomLeft', 'corner bl', 'Bottom left', 'Stacked in the corner, clear of the title art at the top.'],
+                    ['BottomRight', 'corner br', 'Bottom right', 'Stacked in the corner, clear of the title art at the top.'],
+                    ['TopStrip', 'strip ts', 'Strip along the top', 'One row on a soft dark band.'],
+                    ['BottomStrip', 'strip bs', 'Strip along the bottom', 'One row on a soft dark band.']
+                ];
+                var styles = [['Pill', ''], ['Square', 'square'], ['Minimal', 'minimal']];
+                var sizes = [['Small'], ['Medium'], ['Large']];
 
-                function $(selector) { return page.querySelector(selector); }
+                var config = null;
+                var saved = '';
+                var item = null;
+                var previewUrl = null;
+                var originalUrl = null;
+                var previewTimer = null;
+                var results = [];
 
-                function checkbox(id, label, checked) {
-                    return '<label class="emby-checkbox-label"><input type="checkbox" is="emby-checkbox" data-id="' + id + '"' +
-                        (checked ? ' checked' : '') + ' /><span>' + label + '</span></label>';
-                }
+                function $(id) { return page.querySelector('#' + id); }
 
-                function escapeHtml(text) {
+                function esc(text) {
                     var div = document.createElement('div');
-                    div.textContent = text;
+                    div.textContent = text == null ? '' : String(text);
                     return div.innerHTML;
                 }
 
-                function readForm(config) {
-                    config.Enabled = $('#Enabled').checked;
-                    toggles.forEach(function (t) { config[t[0]] = $('#Toggles [data-id="' + t[0] + '"]').checked; });
-                    config.Position = $('#Position').value;
-                    config.Size = $('#Size').value;
-                    config.Style = $('#Style').value;
-                    config.Libraries = Array.prototype.map.call(page.querySelectorAll('#Libraries input:checked'), function (c) { return c.getAttribute('data-id'); });
-                    return config;
+                function call(path, body) {
+                    return fetch(ApiClient.getUrl(path), {
+                        method: 'POST',
+                        headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"', 'Content-Type': 'application/json' },
+                        body: body ? JSON.stringify(body) : undefined
+                    }).then(function (r) {
+                        if (!r.ok) { throw new Error(r.status); }
+                        return r;
+                    });
                 }
 
-                function call(method, path, body) {
-                    return fetch(ApiClient.getUrl(path), {
-                        method: method,
-                        headers: {
-                            'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"',
-                            'Content-Type': 'application/json'
-                        },
-                        body: body ? JSON.stringify(body) : undefined
-                    }).then(function (response) {
-                        if (!response.ok) { throw new Error(response.status); }
-                        return response;
+                function choice(cls, value, current, inner, label) {
+                    return '<button type="button" class="' + cls + '" role="radio" data-value="' + value + '" aria-checked="' + (value === current) +
+                        '" aria-label="' + esc(label) + '">' + inner + '</button>';
+                }
+
+                function render() {
+                    $('jbEnabled').setAttribute('aria-checked', String(config.Enabled));
+                    $('jbState').textContent = config.Enabled ? 'Active' : 'Off';
+
+                    $('jbTiles').innerHTML = badges.map(function (b) {
+                        return '<button type="button" class="jb-tile" role="switch" data-key="' + b[0] + '" aria-checked="' + !!config[b[0]] + '">' +
+                            '<span class="jb-chip">' + b[3] + '</span>' +
+                            '<span class="jb-tile-text"><b>' + b[1] + '</b><small>' + b[2] + '</small></span>' +
+                            '<span class="jb-switch" aria-hidden="true" aria-checked="' + !!config[b[0]] + '"></span></button>';
+                    }).join('');
+
+                    $('jbPoster').innerHTML = positions.map(function (p) {
+                        return choice('jb-spot ' + p[1], p[0], config.Position, '', p[2]);
+                    }).join('');
+                    var pos = positions.filter(function (p) { return p[0] === config.Position; })[0] || positions[0];
+                    $('jbPlaceLabel').textContent = pos[2];
+                    $('jbPlaceHint').textContent = pos[3];
+
+                    $('jbStyle').innerHTML = styles.map(function (s) {
+                        return choice('jb-opt', s[0], config.Style, '<span class="jb-sample"><span class="jb-chip ' + s[1] + '">4K</span></span>' + s[0], s[0]);
+                    }).join('');
+                    $('jbSize').innerHTML = sizes.map(function (s, i) {
+                        return choice('jb-opt', s[0], config.Size, '<span class="jb-sample"><span class="jb-chip" style="font-size:' + (0.75 + i * 0.25) + 'em">4K</span></span>' + s[0], s[0]);
+                    }).join('');
+
+                    var dirty = JSON.stringify(config) !== saved;
+                    $('jbDirty').innerHTML = dirty ? '<span class="jb-dot"></span>Unsaved changes' : (config.Enabled ? 'All changes saved' : 'Badges are off. Switch them on at the top, then save.');
+                }
+
+                function renderLibraries(folders) {
+                    var libs = folders.filter(function (f) {
+                        return !f.CollectionType || ['movies', 'tvshows', 'mixed', 'homevideos'].indexOf(f.CollectionType) !== -1;
+                    });
+                    $('jbLibs').innerHTML = libs.map(function (f) {
+                        return '<button type="button" class="jb-lib" role="switch" data-id="' + f.ItemId + '" aria-checked="' +
+                            (config.Libraries.indexOf(f.ItemId) !== -1) + '">' + esc(f.Name) + '</button>';
+                    }).join('') || '<span class="jb-hint">No movie or show libraries yet.</span>';
+                    updateLibHint();
+                }
+
+                function updateLibHint() {
+                    $('jbLibHint').textContent = config.Libraries.length
+                        ? 'Only the selected libraries get badges.'
+                        : 'All movie and show libraries get badges. Select some to limit it.';
+                }
+
+                function changed() {
+                    render();
+                    schedulePreview();
+                }
+
+                function schedulePreview() {
+                    clearTimeout(previewTimer);
+                    previewTimer = setTimeout(loadPreview, 350);
+                }
+
+                function loadPreview() {
+                    if (!item) { return; }
+                    var frame = $('jbFrame');
+                    frame.classList.add('loading');
+                    var none = JSON.parse(JSON.stringify(config));
+                    badges.forEach(function (b) { none[b[0]] = false; });
+                    var id = item.Id;
+                    Promise.all([
+                        call('JellyBadge/Preview/' + id, config).then(function (r) { return r.blob(); }),
+                        originalUrl ? Promise.resolve(null) : call('JellyBadge/Preview/' + id, none).then(function (r) { return r.blob(); })
+                    ]).then(function (blobs) {
+                        if (!item || item.Id !== id) { return; }
+                        if (previewUrl) { URL.revokeObjectURL(previewUrl); }
+                        previewUrl = URL.createObjectURL(blobs[0]);
+                        if (blobs[1]) { originalUrl = URL.createObjectURL(blobs[1]); }
+                        frame.innerHTML = '<img alt="Preview of ' + esc(item.Name) + '" src="' + previewUrl + '" />';
+                        $('jbCompare').disabled = false;
+                        $('jbCaption').textContent = item.Name + '. Nothing is saved.';
+                    }).catch(function () {
+                        frame.innerHTML = '<div class="jb-empty">This item has no poster yet.</div>';
+                        $('jbCompare').disabled = true;
+                    }).then(function () { frame.classList.remove('loading'); });
+                }
+
+                function selectItem(next) {
+                    item = next;
+                    if (originalUrl) { URL.revokeObjectURL(originalUrl); originalUrl = null; }
+                    $('jbResults').hidden = true;
+                    $('jbSearch').value = next.Name;
+                    loadPreview();
+                }
+
+                function search(term) {
+                    return ApiClient.getItems(ApiClient.getCurrentUserId(), {
+                        SearchTerm: term || undefined,
+                        IncludeItemTypes: 'Movie,Series',
+                        Recursive: true,
+                        ImageTypes: 'Primary',
+                        SortBy: term ? 'SortName' : 'DateCreated',
+                        SortOrder: term ? 'Ascending' : 'Descending',
+                        Limit: term ? 12 : 1
                     });
                 }
 
                 function save() {
                     Dashboard.showLoadingMsg();
-                    return ApiClient.getPluginConfiguration(pluginId).then(function (config) {
-                        return ApiClient.updatePluginConfiguration(pluginId, readForm(config));
-                    }).then(function (result) {
+                    return ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
+                        saved = JSON.stringify(config);
+                        render();
                         Dashboard.processPluginConfigurationUpdateResult(result);
+                    }).catch(function () {
+                        Dashboard.hideLoadingMsg();
+                        Dashboard.alert('Saving failed. Check the server log.');
+                        throw new Error('save failed');
                     });
                 }
 
-                page.addEventListener('pageshow', function () {
-                    Dashboard.showLoadingMsg();
-                    Promise.all([ApiClient.getPluginConfiguration(pluginId), ApiClient.getVirtualFolders()]).then(function (results) {
-                        var config = results[0];
-                        $('#Enabled').checked = config.Enabled;
-                        $('#Toggles').innerHTML = toggles.map(function (t) { return checkbox(t[0], t[1], config[t[0]]); }).join('');
-                        $('#Position').value = config.Position;
-                        $('#Size').value = config.Size;
-                        $('#Style').value = config.Style;
-                        $('#Libraries').innerHTML = results[1]
-                            .filter(function (f) { return !f.CollectionType || f.CollectionType === 'movies' || f.CollectionType === 'tvshows' || f.CollectionType === 'mixed'; })
-                            .map(function (f) { return checkbox(f.ItemId, escapeHtml(f.Name), config.Libraries.indexOf(f.ItemId) !== -1); })
-                            .join('');
-                        Dashboard.hideLoadingMsg();
-                    });
+                // Clicks, all through one delegated handler.
+                page.addEventListener('click', function (e) {
+                    var el = e.target.closest('button');
+                    if (!el || !page.contains(el) || !config) { return; }
+                    if (el.id === 'jbEnabled') { config.Enabled = !config.Enabled; render(); return; }
+                    if (el.classList.contains('jb-tile')) { config[el.getAttribute('data-key')] = !config[el.getAttribute('data-key')]; changed(); return; }
+                    if (el.classList.contains('jb-spot')) { config.Position = el.getAttribute('data-value'); changed(); return; }
+                    if (el.parentNode.id === 'jbStyle') { config.Style = el.getAttribute('data-value'); changed(); return; }
+                    if (el.parentNode.id === 'jbSize') { config.Size = el.getAttribute('data-value'); changed(); return; }
+                    if (el.classList.contains('jb-lib')) {
+                        var libId = el.getAttribute('data-id');
+                        var at = config.Libraries.indexOf(libId);
+                        if (at === -1) { config.Libraries.push(libId); } else { config.Libraries.splice(at, 1); }
+                        el.setAttribute('aria-checked', String(at === -1));
+                        updateLibHint();
+                        render();
+                        return;
+                    }
+                    if (el.classList.contains('jb-result')) { selectItem(results[+el.getAttribute('data-index')]); return; }
+                    if (el.id === 'jbSave') { save(); return; }
+                    if (el.id === 'jbApply') {
+                        if (!config.Enabled) { Dashboard.alert('Switch badges on at the top first.'); return; }
+                        save().then(function () {
+                            return ApiClient.getScheduledTasks({ isHidden: false });
+                        }).then(function (tasks) {
+                            var task = tasks.filter(function (t) { return t.Key === 'JellyBadgeApply'; })[0];
+                            return ApiClient.startScheduledTask(task.Id);
+                        }).then(function () {
+                            Dashboard.alert('Badging has started. You can follow it under Scheduled Tasks.');
+                        }).catch(function () { /* save already reported */ });
+                        return;
+                    }
+                    if (el.id === 'jbRestore') {
+                        if (!window.confirm('Remove all badges, put every original poster back and turn JellyBadge off?')) { return; }
+                        Dashboard.showLoadingMsg();
+                        call('JellyBadge/RestoreAll').then(function (r) { return r.json(); }).then(function (count) {
+                            config.Enabled = false;
+                            saved = JSON.stringify(config);
+                            render();
+                            Dashboard.alert('Done. ' + count + ' original posters are back and JellyBadge is off.');
+                        }).catch(function () {
+                            Dashboard.alert('Restoring failed. Check the server log.');
+                        }).then(function () { Dashboard.hideLoadingMsg(); });
+                    }
+                });
+
+                // Press and hold to compare with the original poster.
+                function showOriginal(on) {
+                    var img = $('jbFrame').querySelector('img');
+                    if (img && originalUrl && previewUrl) { img.src = on ? originalUrl : previewUrl; }
+                }
+                ['mousedown', 'touchstart', 'keydown'].forEach(function (ev) {
+                    $('jbCompare').addEventListener(ev, function (e) { if (ev !== 'keydown' || e.key === ' ' || e.key === 'Enter') { showOriginal(true); } });
+                });
+                ['mouseup', 'mouseleave', 'touchend', 'keyup', 'blur'].forEach(function (ev) {
+                    $('jbCompare').addEventListener(ev, function () { showOriginal(false); });
                 });
 
                 var searchTimer;
-                $('#PreviewSearch').addEventListener('input', function (e) {
+                $('jbSearch').addEventListener('input', function (e) {
                     clearTimeout(searchTimer);
+                    var term = e.target.value.trim();
+                    if (!term) { $('jbResults').hidden = true; return; }
                     searchTimer = setTimeout(function () {
-                        ApiClient.getItems(ApiClient.getCurrentUserId(), {
-                            SearchTerm: e.target.value,
-                            IncludeItemTypes: 'Movie,Series',
-                            Recursive: true,
-                            Limit: 20
-                        }).then(function (result) {
-                            $('#PreviewItem').innerHTML = result.Items.map(function (i) {
-                                return '<option value="' + i.Id + '">' + escapeHtml(i.Name + (i.ProductionYear ? ' (' + i.ProductionYear + ')' : '')) + '</option>';
-                            }).join('');
+                        search(term).then(function (result) {
+                            results = result.Items;
+                            $('jbResults').innerHTML = result.Items.map(function (i, index) {
+                                var thumb = ApiClient.getScaledImageUrl(i.Id, { type: 'Primary', maxHeight: 102, tag: i.ImageTags && i.ImageTags.Primary });
+                                return '<button type="button" class="jb-result" data-index="' + index + '">' +
+                                    '<img alt="" loading="lazy" src="' + thumb + '" /><span>' + esc(i.Name) +
+                                    '<small>' + (i.ProductionYear || '') + (i.Type === 'Series' ? ' · Series' : '') + '</small></span></button>';
+                            }).join('') || '<div class="jb-empty">Nothing found.</div>';
+                            $('jbResults').hidden = false;
                         });
-                    }, 300);
+                    }, 250);
+                });
+                $('jbSearch').addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') { $('jbResults').hidden = true; }
+                });
+                document.addEventListener('click', function (e) {
+                    if (!e.target.closest || !e.target.closest('#JellyBadgeConfigPage .jb-search')) { var r = $('jbResults'); if (r) { r.hidden = true; } }
                 });
 
-                $('#PreviewButton').addEventListener('click', function () {
-                    var id = $('#PreviewItem').value;
-                    if (!id) { return; }
+                page.addEventListener('pageshow', function () {
                     Dashboard.showLoadingMsg();
-                    call('POST', 'JellyBadge/Preview/' + id, readForm({}))
-                        .then(function (response) { return response.blob(); })
-                        .then(function (blob) {
-                            var img = $('#PreviewImage');
-                            if (img.src) { URL.revokeObjectURL(img.src); }
-                            img.src = URL.createObjectURL(blob);
-                            img.style.display = 'block';
-                        })
-                        .catch(function () { Dashboard.alert('This item has no poster to preview.'); })
-                        .finally(function () { Dashboard.hideLoadingMsg(); });
-                });
-
-                $('#JellyBadgeConfigForm').addEventListener('submit', function (e) {
-                    e.preventDefault();
-                    save();
-                    return false;
-                });
-
-                $('#ApplyButton').addEventListener('click', function () {
-                    if (!$('#Enabled').checked) {
-                        Dashboard.alert('Turn on "Enable badges" first.');
-                        return;
-                    }
-                    save().then(function () {
-                        return ApiClient.getScheduledTasks({ isHidden: false });
-                    }).then(function (tasks) {
-                        var task = tasks.filter(function (t) { return t.Key === 'JellyBadgeApply'; })[0];
-                        return ApiClient.startScheduledTask(task.Id);
-                    }).then(function () {
-                        Dashboard.alert('Badging started. Progress shows under Scheduled Tasks.');
+                    Promise.all([ApiClient.getPluginConfiguration(pluginId), ApiClient.getVirtualFolders(), search('')]).then(function (results) {
+                        config = results[0];
+                        config.Libraries = config.Libraries || [];
+                        saved = JSON.stringify(config);
+                        render();
+                        renderLibraries(results[1]);
+                        if (results[2].Items.length) { selectItem({ Id: results[2].Items[0].Id, Name: results[2].Items[0].Name }); }
+                        Dashboard.hideLoadingMsg();
                     });
-                });
-
-                $('#RestoreButton').addEventListener('click', function () {
-                    if (!window.confirm('Remove all badges, restore every original poster and turn JellyBadge off?')) { return; }
-                    Dashboard.showLoadingMsg();
-                    call('POST', 'JellyBadge/RestoreAll')
-                        .then(function (response) { return response.json(); })
-                        .then(function (count) {
-                            $('#Enabled').checked = false;
-                            Dashboard.alert('Restored ' + count + ' posters. JellyBadge is now off.');
-                        })
-                        .catch(function () { Dashboard.alert('Restoring failed. Check the server log.'); })
-                        .finally(function () { Dashboard.hideLoadingMsg(); });
                 });
             })();
         </script>

@@ -6,5 +6,6 @@
   "description": "Stamps resolution, HDR, audio and rating badges onto movie and series posters on the server, so they show in every Jellyfin client, including native TV apps. Originals are backed up and can be restored at any time.",
   "owner": "PeterSlijkhuis",
   "category": "Metadata",
-  "targetAbi": "12.1.0.0"
+  "targetAbi": "12.1.0.0",
+  "imageUrl": "https://raw.githubusercontent.com/PeterSlijkhuis/JellyBadge/main/docs/jellybadge.png"
 }
