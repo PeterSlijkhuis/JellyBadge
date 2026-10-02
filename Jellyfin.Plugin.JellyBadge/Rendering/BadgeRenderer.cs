@@ -82,19 +82,55 @@ public static class BadgeRenderer
         float gap = h * 0.2f;
         var isStrip = config.Position is BadgePosition.TopStrip or BadgePosition.BottomStrip;
 
-        // Fit the badges to their area: few badges grow, many shrink. Growth stops at 1.6 times the
+        // Fit the badges to their area: few badges grow, many shrink. Growth stops at 2 times the
         // chosen size, so a lone "4K" never turns into a banner.
-        const float maxGrow = 1.6f;
+        const float maxGrow = 2f;
         float fit;
+        List<Badge[]> rows = [badges.ToArray()];
         if (isStrip)
         {
-            fit = (width - (2 * margin)) / (badges.Sum(b => Measure(b, h)) + (gap * (badges.Count - 1)));
+            // A strip may use the full width and 25% of the height.
+            float StripFit(List<Badge[]> lines)
+                => Math.Min(
+                    (width - (2 * margin)) / lines.Max(r => r.Sum(b => Measure(b, h)) + (gap * (r.Length - 1))),
+                    height * 0.25f / ((lines.Count * h) + ((lines.Count - 1) * gap)));
+
+            fit = StripFit(rows);
+            if (badges.Count > 3)
+            {
+                // Many badges: a second row keeps them big enough to read on a phone. Keep whichever gives bigger badges.
+                var half = (badges.Count + 1) / 2;
+                List<Badge[]> lines = [badges.Take(half).ToArray(), badges.Skip(half).ToArray()];
+                if (StripFit(lines) > fit)
+                {
+                    rows = lines;
+                    fit = StripFit(lines);
+                }
+            }
         }
         else
         {
-            // A corner stack may use 45% of the height and 60% of the width.
-            var stackHeight = (badges.Count * h) + ((badges.Count - 1) * gap);
-            fit = Math.Min(height * 0.45f / stackHeight, width * 0.6f / badges.Max(b => Measure(b, h)));
+            // A corner stack may use 45% of the height and 60% of the width (90% for two columns).
+            float StackFit(List<Badge[]> columns)
+            {
+                var tallest = columns.Max(c => c.Length);
+                var stackWidth = columns.Sum(c => c.Max(b => Measure(b, h))) + (gap * (columns.Count - 1));
+                return Math.Min(height * 0.45f / ((tallest * h) + ((tallest - 1) * gap)), width * (columns.Count == 1 ? 0.6f : 0.9f) / stackWidth);
+            }
+
+            fit = StackFit(rows);
+            if (badges.Count > 3)
+            {
+                // Many badges: two columns keep them big enough to read on a phone. Keep whichever gives bigger badges.
+                var half = (badges.Count + 1) / 2;
+                List<Badge[]> columns = [badges.Take(half).ToArray(), badges.Skip(half).ToArray()];
+                var columnFit = StackFit(columns);
+                if (columnFit > fit)
+                {
+                    rows = columns;
+                    fit = columnFit;
+                }
+            }
         }
 
         var scale = Math.Min(maxGrow, fit);
@@ -103,10 +139,8 @@ public static class BadgeRenderer
 
         if (isStrip)
         {
-            var rowWidth = badges.Sum(b => Measure(b, h)) + (gap * (badges.Count - 1));
-
             var top = config.Position == BadgePosition.TopStrip;
-            var bandHeight = h + (2 * margin);
+            var bandHeight = (rows.Count * h) + ((rows.Count - 1) * gap) + (2 * margin);
             using var shade = new SKPaint
             {
                 Shader = SKShader.CreateLinearGradient(
@@ -117,10 +151,16 @@ public static class BadgeRenderer
             };
             canvas.DrawRect(0, top ? 0 : height - (bandHeight * 1.4f), width, bandHeight * 1.4f, shade);
 
-            float x = (width - rowWidth) / 2, y = top ? margin : height - margin - h;
-            foreach (var badge in badges)
+            float y = top ? margin : height - margin - (rows.Count * h) - ((rows.Count - 1) * gap);
+            foreach (var row in rows)
             {
-                x += DrawBadge(canvas, badge, x, y, h, config.Style) + gap;
+                float x = (width - (row.Sum(b => Measure(b, h)) + (gap * (row.Length - 1)))) / 2;
+                foreach (var badge in row)
+                {
+                    x += DrawBadge(canvas, badge, x, y, h, config.Style) + gap;
+                }
+
+                y += h + gap;
             }
 
             return;
@@ -128,13 +168,20 @@ public static class BadgeRenderer
 
         var right = config.Position is BadgePosition.TopRight or BadgePosition.BottomRight;
         var bottom = config.Position is BadgePosition.BottomLeft or BadgePosition.BottomRight;
-        var stack = bottom ? badges.Reverse() : badges;
-        float cy = bottom ? height - margin - h : margin;
-        foreach (var badge in stack)
+        var widths = rows.Select(c => c.Max(b => Measure(b, h))).ToList();
+        float left = right ? width - margin - widths.Sum() - (gap * (rows.Count - 1)) : margin;
+        for (var c = 0; c < rows.Count; c++)
         {
-            var bx = right ? width - margin - Measure(badge, h) : margin;
-            DrawBadge(canvas, badge, bx, cy, h, config.Style);
-            cy += bottom ? -(h + gap) : h + gap;
+            var stack = bottom ? rows[c].Reverse() : rows[c];
+            float cy = bottom ? height - margin - h : margin;
+            foreach (var badge in stack)
+            {
+                var bx = right ? left + widths[c] - Measure(badge, h) : left;
+                DrawBadge(canvas, badge, bx, cy, h, config.Style);
+                cy += bottom ? -(h + gap) : h + gap;
+            }
+
+            left += widths[c] + gap;
         }
     }
 
