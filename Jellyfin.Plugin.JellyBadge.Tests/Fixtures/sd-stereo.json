@@ -1,0 +1,4 @@
+[
+  { "Type": "Video", "Codec": "mpeg2video", "Width": 720, "Height": 576 },
+  { "Type": "Audio", "Codec": "aac", "Channels": 2 }
+]

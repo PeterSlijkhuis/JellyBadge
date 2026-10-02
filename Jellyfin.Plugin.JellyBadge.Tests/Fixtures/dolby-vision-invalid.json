@@ -1,0 +1,5 @@
+[
+  { "Type": "Video", "Codec": "hevc", "CodecTag": "dvh1", "Width": 3840, "Height": 2160, "ColorSpace": "bt709", "ColorTransfer": "smpte2084", "ColorPrimaries": "bt2020",
+    "DvProfile": 8, "DvBlSignalCompatibilityId": 1, "RpuPresentFlag": 1, "BlPresentFlag": 1 },
+  { "Type": "Audio", "Codec": "truehd", "Channels": 8 }
+]

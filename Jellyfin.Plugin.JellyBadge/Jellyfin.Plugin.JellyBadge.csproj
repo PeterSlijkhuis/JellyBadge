@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Jellyfin.Plugin.JellyBadge</RootNamespace>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- All three ship with the server, so we compile against them but never copy them. -->
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Controller" Version="12.1.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Jellyfin.Model" Version="12.1.0">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="SkiaSharp" Version="3.119.4">
+      <ExcludeAssets>runtime;native</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Configuration\configPage.html" />
+    <EmbeddedResource Include="Configuration\configPage.html" />
+    <EmbeddedResource Include="Rendering\Fonts\BarlowCondensed-Bold.ttf" />
+  </ItemGroup>
+
+</Project>

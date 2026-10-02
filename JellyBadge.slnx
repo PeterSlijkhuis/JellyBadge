@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Jellyfin.Plugin.JellyBadge/Jellyfin.Plugin.JellyBadge.csproj" />
+  <Project Path="Jellyfin.Plugin.JellyBadge.Tests/Jellyfin.Plugin.JellyBadge.Tests.csproj" />
+</Solution>

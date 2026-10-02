@@ -1,0 +1,51 @@
+name: Release
+
+# Push a tag like v1.0.0 to build, publish a GitHub release and add it to manifest.json.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  TARGET_ABI: '12.1.0.0'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test and build
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}.0"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          dotnet test JellyBadge.slnx
+          dotnet publish Jellyfin.Plugin.JellyBadge -c Release -o out -p:Version="$VERSION"
+          ZIP="jellybadge_${VERSION}.zip"
+          (cd out && zip "../$ZIP" Jellyfin.Plugin.JellyBadge.dll)
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+          echo "CHECKSUM=$(md5sum "$ZIP" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$ZIP" --title "JellyBadge $GITHUB_REF_NAME" --generate-notes
+
+      - name: Add version to manifest.json
+        run: |
+          git fetch origin main
+          git checkout main
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${ZIP}"
+          jq --arg v "$VERSION" --arg abi "$TARGET_ABI" --arg url "$URL" --arg sum "$CHECKSUM" \
+             --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg log "See https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}" \
+             '.[0].versions = [{version: $v, changelog: $log, targetAbi: $abi, sourceUrl: $url, checksum: $sum, timestamp: $ts}] + .[0].versions' \
+             manifest.json > manifest.tmp && mv manifest.tmp manifest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Add $GITHUB_REF_NAME to manifest"
+          git push origin main

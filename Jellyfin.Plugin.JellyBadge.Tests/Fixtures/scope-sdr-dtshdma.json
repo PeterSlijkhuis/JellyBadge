@@ -1,0 +1,4 @@
+[
+  { "Type": "Video", "Codec": "h264", "Width": 1920, "Height": 800, "ColorTransfer": "bt709" },
+  { "Type": "Audio", "Codec": "dts", "Profile": "DTS-HD MA", "Channels": 6 }
+]
