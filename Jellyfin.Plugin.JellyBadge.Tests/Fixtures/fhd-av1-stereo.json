@@ -1,0 +1,4 @@
+[
+  { "Type": "Video", "Codec": "av1", "Width": 1920, "Height": 1080, "ColorSpace": "bt709", "ColorTransfer": "bt709", "ColorPrimaries": "bt709" },
+  { "Type": "Audio", "Codec": "opus", "Channels": 2, "Language": "eng" }
+]

@@ -85,13 +85,14 @@ public sealed class PosterProcessor : IDisposable
     }
 
     /// <summary>
-    /// Whether this item is a movie, series or (when switched on) episode in an included library.
+    /// Whether this item is a movie, series or (when switched on) episode or collection in an included library.
     /// </summary>
     /// <param name="item">The item.</param>
     /// <returns>True if it should be badged.</returns>
     public bool IsCandidate(BaseItem item)
     {
-        if (item is not (Movie or Series or Episode) || item.IsVirtualItem || (item is Episode && !Config.BadgeEpisodes))
+        if (item is not (Movie or Series or Episode or BoxSet) || item.IsVirtualItem
+            || (item is Episode && !Config.BadgeEpisodes) || (item is BoxSet && !Config.BadgeCollections))
         {
             return false;
         }
@@ -401,6 +402,11 @@ public sealed class PosterProcessor : IDisposable
             });
             technical = BadgeDetector.MostCommon(episodes.Select(e => (IReadOnlyList<Badge>)BestVersion(e)).ToList());
         }
+        else if (item is BoxSet boxSet)
+        {
+            // Like a series: the most common quality of the movies in it.
+            technical = BadgeDetector.MostCommon(boxSet.GetLinkedChildren().OfType<Movie>().Select(m => (IReadOnlyList<Badge>)BestVersion(m)).ToList());
+        }
         else
         {
             technical = BestVersion(item);
@@ -414,6 +420,8 @@ public sealed class PosterProcessor : IDisposable
                 BadgeKind.DynamicRange => config.ShowDynamicRange,
                 BadgeKind.AudioFormat => config.ShowAudioFormat,
                 BadgeKind.AudioChannels => config.ShowAudioChannels,
+                BadgeKind.VideoCodec => config.ShowVideoCodec,
+                BadgeKind.Remux => config.ShowRemux,
                 BadgeKind.CommunityRating => config.ShowCommunityRating,
                 _ => config.ShowCriticRating
             })
@@ -421,7 +429,7 @@ public sealed class PosterProcessor : IDisposable
     }
 
     private static List<Badge> BestVersion(BaseItem item)
-        => BadgeDetector.BestVersion(item.GetMediaSources(false).Select(s => (IReadOnlyList<MediaStream>)s.MediaStreams));
+        => BadgeDetector.BestVersion(item.GetMediaSources(false).Select(s => ((IReadOnlyList<MediaStream>)s.MediaStreams, (string?)s.Path)));
 
     private static (byte[] Bytes, string Path)? ReadPrimary(BaseItem item)
     {

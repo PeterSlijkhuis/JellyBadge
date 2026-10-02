@@ -1,14 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Jellyfin.Data.Enums;
 using MediaBrowser.Model.Entities;
 
 namespace Jellyfin.Plugin.JellyBadge.Detection;
 
 /// <summary>
-/// Badge groups, in the order they are drawn.
+/// Badge groups.
 /// </summary>
 public enum BadgeKind
 {
@@ -28,7 +30,15 @@ public enum BadgeKind
     CommunityRating,
 
     /// <summary>Critic rating, 0 to 100.</summary>
-    CriticRating
+    CriticRating,
+
+    // Added later, so they go last here: the numbers are part of the stored hashes.
+
+    /// <summary>AV1, HEVC, H.264. Drawn after the dynamic range.</summary>
+    VideoCodec,
+
+    /// <summary>Remux, from the file name. Drawn after the codec.</summary>
+    Remux
 }
 
 /// <summary>
@@ -41,9 +51,10 @@ public sealed record Badge(BadgeKind Kind, string Text);
 /// <summary>
 /// Turns stream info and ratings into badges. Pure logic, no Jellyfin services.
 /// </summary>
-public static class BadgeDetector
+public static partial class BadgeDetector
 {
-    private static readonly BadgeKind[] TechnicalKinds = [BadgeKind.Resolution, BadgeKind.DynamicRange, BadgeKind.AudioFormat, BadgeKind.AudioChannels];
+    // The order technical badges are drawn in.
+    private static readonly BadgeKind[] TechnicalKinds = [BadgeKind.Resolution, BadgeKind.DynamicRange, BadgeKind.VideoCodec, BadgeKind.Remux, BadgeKind.AudioFormat, BadgeKind.AudioChannels];
 
     /// <summary>
     /// Technical badges for the best of several versions of one item.
@@ -51,13 +62,23 @@ public static class BadgeDetector
     /// <param name="versions">The stream lists, one per version.</param>
     /// <returns>The badges of the best version.</returns>
     public static List<Badge> BestVersion(IEnumerable<IReadOnlyList<MediaStream>> versions)
+        => BestVersion(versions.Select(v => (v, (string?)null)));
+
+    /// <summary>
+    /// Technical badges for the best of several versions of one item.
+    /// </summary>
+    /// <param name="versions">The stream list and file path of each version.</param>
+    /// <returns>The badges of the best version.</returns>
+    public static List<Badge> BestVersion(IEnumerable<(IReadOnlyList<MediaStream> Streams, string? Path)> versions)
     {
         var best = versions
-            .Select(Score)
+            .Select(v => Score(v.Streams, v.Path))
             .OrderByDescending(s => s.Resolution.Rank)
             .ThenByDescending(s => s.Range.Rank)
             .ThenByDescending(s => s.Format.Rank)
             .ThenByDescending(s => s.Channels.Rank)
+            .ThenByDescending(s => s.Remux.Rank)
+            .ThenByDescending(s => s.Codec.Rank)
             .FirstOrDefault();
 
         if (best is null)
@@ -69,6 +90,8 @@ public static class BadgeDetector
         {
             (BadgeKind.Resolution, best.Resolution),
             (BadgeKind.DynamicRange, best.Range),
+            (BadgeKind.VideoCodec, best.Codec),
+            (BadgeKind.Remux, best.Remux),
             (BadgeKind.AudioFormat, best.Format),
             (BadgeKind.AudioChannels, best.Channels)
         }
@@ -125,7 +148,7 @@ public static class BadgeDetector
         return result;
     }
 
-    private static VersionScore Score(IReadOnlyList<MediaStream> streams)
+    private static VersionScore Score(IReadOnlyList<MediaStream> streams, string? path)
     {
         var video = streams.Where(s => s.Type == MediaStreamType.Video).MaxBy(s => (s.Width ?? 0) * (s.Height ?? 0));
         var audio = streams
@@ -139,8 +162,25 @@ public static class BadgeDetector
             video is null ? Ranked.None : Resolution(video),
             video is null ? Ranked.None : DynamicRange(video),
             audio.Format ?? Ranked.None,
-            audio.Channels ?? Ranked.None);
+            audio.Channels ?? Ranked.None,
+            video is null ? Ranked.None : VideoCodec(video),
+            IsRemux(path) ? new(1, "REMUX") : Ranked.None);
     }
+
+    private static Ranked VideoCodec(MediaStream video) => (video.Codec ?? string.Empty).ToLowerInvariant() switch
+    {
+        "av1" => new(3, "AV1"),
+        "hevc" or "h265" => new(2, "HEVC"),
+        "h264" or "avc" => new(1, "H.264"),
+        _ => Ranked.None
+    };
+
+    // Release names say "Remux" (Movie.2019.2160p.UHD.BluRay.REMUX.mkv), in the file or its folder; the streams alone cannot tell.
+    private static bool IsRemux(string? path)
+        => path is not null && (RemuxWord().IsMatch(Path.GetFileName(path)) || RemuxWord().IsMatch(Path.GetFileName(Path.GetDirectoryName(path)) ?? string.Empty));
+
+    [GeneratedRegex(@"(^|[^a-z])remux([^a-z]|$)", RegexOptions.IgnoreCase)]
+    private static partial Regex RemuxWord();
 
     private static Ranked Resolution(MediaStream video)
     {
@@ -219,5 +259,5 @@ public static class BadgeDetector
         public static readonly Ranked None = new(0, string.Empty);
     }
 
-    private sealed record VersionScore(Ranked Resolution, Ranked Range, Ranked Format, Ranked Channels);
+    private sealed record VersionScore(Ranked Resolution, Ranked Range, Ranked Format, Ranked Channels, Ranked Codec, Ranked Remux);
 }

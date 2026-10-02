@@ -237,6 +237,11 @@
                                 <span class="jb-tile-text"><b>Episode thumbnails</b><small>Badge each episode with its own quality and rating.</small></span>
                                 <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
                             </button>
+                            <button type="button" class="jb-tile" role="switch" id="jbCollections" data-key="BadgeCollections" aria-checked="false" style="margin-top:0.7em;width:100%;">
+                                <span class="jb-chip">BOX SET</span>
+                                <span class="jb-tile-text"><b>Collection posters</b><small>Badge collections with the most common quality of their movies.</small></span>
+                                <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
+                            </button>
                         </section>
 
                         <section class="jb-card jb-danger">
@@ -279,6 +284,8 @@
                 var badges = [
                     ['ShowResolution', 'Resolution', '4K, 1080p, 720p, SD', '4K'],
                     ['ShowDynamicRange', 'Dynamic range', 'Dolby Vision, HDR10+, HDR10, HLG', 'HDR10+'],
+                    ['ShowVideoCodec', 'Video codec', 'AV1, HEVC, H.264', 'HEVC'],
+                    ['ShowRemux', 'Remux', 'From the file or folder name', 'REMUX'],
                     ['ShowAudioFormat', 'Audio format', 'Atmos, DTS:X, TrueHD, DTS-HD MA', 'ATMOS'],
                     ['ShowAudioChannels', 'Audio channels', '7.1, 5.1', '7.1'],
                     ['ShowCommunityRating', 'Community rating', 'Score out of 10', '★ 7.8'],
@@ -338,7 +345,9 @@
                             '<span class="jb-switch" aria-hidden="true" aria-checked="' + !!config[b[0]] + '"></span></button>';
                     }).join('');
 
-                    [$('jbEpisodes'), $('jbEpisodes').querySelector('.jb-switch')].forEach(function (el) { el.setAttribute('aria-checked', String(!!config.BadgeEpisodes)); });
+                    [['jbEpisodes', 'BadgeEpisodes'], ['jbCollections', 'BadgeCollections']].forEach(function (t) {
+                        [$(t[0]), $(t[0]).querySelector('.jb-switch')].forEach(function (el) { el.setAttribute('aria-checked', String(!!config[t[1]])); });
+                    });
 
                     $('jbPoster').innerHTML = positions.map(function (p) {
                         return choice('jb-spot ' + p[1], p[0], config.Position, '', p[2]);
@@ -360,7 +369,7 @@
 
                 function renderLibraries(folders) {
                     var libs = folders.filter(function (f) {
-                        return !f.CollectionType || ['movies', 'tvshows', 'mixed', 'homevideos'].indexOf(f.CollectionType) !== -1;
+                        return !f.CollectionType || ['movies', 'tvshows', 'mixed', 'homevideos', 'boxsets'].indexOf(f.CollectionType) !== -1;
                     });
                     $('jbLibs').innerHTML = libs.map(function (f) {
                         return '<button type="button" class="jb-lib" role="switch" data-id="' + f.ItemId + '" aria-checked="' +
@@ -421,7 +430,7 @@
                 function search(term) {
                     return ApiClient.getItems(ApiClient.getCurrentUserId(), {
                         SearchTerm: term || undefined,
-                        IncludeItemTypes: config && config.BadgeEpisodes && term ? 'Movie,Series,Episode' : 'Movie,Series',
+                        IncludeItemTypes: ['Movie', 'Series'].concat(config && term && config.BadgeEpisodes ? ['Episode'] : [], config && term && config.BadgeCollections ? ['BoxSet'] : []).join(','),
                         Recursive: true,
                         ImageTypes: 'Primary',
                         SortBy: term ? 'SortName' : 'DateCreated',
@@ -517,7 +526,7 @@
                                 var thumb = ApiClient.getScaledImageUrl(i.Id, { type: 'Primary', maxHeight: 102, tag: i.ImageTags && i.ImageTags.Primary });
                                 return '<button type="button" class="jb-result" data-index="' + index + '">' +
                                     '<img alt="" loading="lazy" src="' + thumb + '" /><span>' + esc(i.Name) +
-                                    '<small>' + (i.Type === 'Episode' ? esc(i.SeriesName) + ' · S' + (i.ParentIndexNumber || 0) + ' E' + (i.IndexNumber || 0) : (i.ProductionYear || '') + (i.Type === 'Series' ? ' · Series' : '')) + '</small></span></button>';
+                                    '<small>' + (i.Type === 'Episode' ? esc(i.SeriesName) + ' · S' + (i.ParentIndexNumber || 0) + ' E' + (i.IndexNumber || 0) : (i.ProductionYear || '') + (i.Type === 'Series' ? ' · Series' : i.Type === 'BoxSet' ? ' · Collection' : '')) + '</small></span></button>';
                             }).join('') || '<div class="jb-empty">Nothing found.</div>';
                             $('jbResults').hidden = false;
                         });

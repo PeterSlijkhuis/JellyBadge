@@ -78,6 +78,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether to show the audio channels badge.</summary>
     public bool ShowAudioChannels { get; set; } = true;
 
+    /// <summary>Gets or sets a value indicating whether to show the video codec badge. Off by default, so updating changes no poster.</summary>
+    public bool ShowVideoCodec { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to show the remux badge. Off by default.</summary>
+    public bool ShowRemux { get; set; }
+
     /// <summary>Gets or sets a value indicating whether to show the community rating badge.</summary>
     public bool ShowCommunityRating { get; set; } = true;
 
@@ -86,6 +92,9 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Gets or sets a value indicating whether episode thumbnails get badged too.</summary>
     public bool BadgeEpisodes { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether collection posters get badged too.</summary>
+    public bool BadgeCollections { get; set; }
 
     /// <summary>Gets or sets the badge position.</summary>
     public BadgePosition Position { get; set; } = BadgePosition.TopLeft;
