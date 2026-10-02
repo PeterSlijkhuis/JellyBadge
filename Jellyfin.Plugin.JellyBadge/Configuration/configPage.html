@@ -44,6 +44,12 @@
                 #JellyBadgeConfigPage .jb-layout { grid-template-columns: minmax(0, 1fr); }
                 #JellyBadgeConfigPage .jb-side { position: static !important; order: -1; }
                 #JellyBadgeConfigPage .jb-frame { max-width: 240px; margin-left: auto; margin-right: auto; }
+                #JellyBadgeConfigPage .jb-mini:not([hidden]) { display: block; }
+            }
+            /* Phone: the preview sits at the top, so a small copy floats in view while you change settings below. */
+            #JellyBadgeConfigPage .jb-mini {
+                display: none; position: fixed; right: 12px; bottom: 11em; width: 110px; z-index: 5; cursor: pointer;
+                border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.15);
             }
             #JellyBadgeConfigPage .jb-card {
                 background: var(--jb-card); border: 1px solid var(--jb-line); border-radius: var(--jb-radius);
@@ -215,7 +221,7 @@
 
                         <section class="jb-card">
                             <h2>Look</h2>
-                            <p class="jb-hint">Badges scale with the poster, so they stay readable on a TV and on a phone.</p>
+                            <p class="jb-hint">Badges grow or shrink to fill their spot and scale with the poster, so they stay readable on a TV and on a phone.</p>
                             <div class="jb-row">
                                 <div>
                                     <span class="jb-label">Style</span>
@@ -269,6 +275,7 @@
                     </aside>
                 </div>
 
+                <img class="jb-mini" id="jbMini" alt="Live preview, tap to scroll to it" hidden />
                 <div class="jb-bar">
                     <span class="jb-dirty" id="jbDirty"></span>
                     <button type="button" class="jb-btn" id="jbApply">Save and apply now</button>
@@ -292,12 +299,12 @@
                     ['ShowCriticRating', 'Critic rating', 'Percentage', '✓ 92%']
                 ];
                 var positions = [
-                    ['TopLeft', 'corner tl', 'Top left', 'Stacked in the corner.'],
-                    ['TopRight', 'corner tr', 'Top right', 'Stacked in the corner.'],
+                    ['TopLeft', 'corner tl', 'Top left', 'Stacked in the corner, two columns when there are many.'],
+                    ['TopRight', 'corner tr', 'Top right', 'Stacked in the corner, two columns when there are many.'],
                     ['BottomLeft', 'corner bl', 'Bottom left', 'Stacked in the corner, clear of the title art at the top.'],
                     ['BottomRight', 'corner br', 'Bottom right', 'Stacked in the corner, clear of the title art at the top.'],
-                    ['TopStrip', 'strip ts', 'Strip along the top', 'One row on a soft dark band.'],
-                    ['BottomStrip', 'strip bs', 'Strip along the bottom', 'One row on a soft dark band.']
+                    ['TopStrip', 'strip ts', 'Strip along the top', 'On a soft dark band, in two rows when there are many.'],
+                    ['BottomStrip', 'strip bs', 'Strip along the bottom', 'On a soft dark band, in two rows when there are many.']
                 ];
                 var styles = [['Pill', ''], ['Square', 'square'], ['Minimal', 'minimal']];
                 var sizes = [['Small'], ['Medium'], ['Large']];
@@ -410,6 +417,8 @@
                         previewUrl = URL.createObjectURL(blobs[0]);
                         if (blobs[1]) { originalUrl = URL.createObjectURL(blobs[1]); }
                         frame.innerHTML = '<img alt="Preview of ' + esc(item.Name) + '" src="' + previewUrl + '" />';
+                        $('jbMini').src = previewUrl;
+                        updateMini();
                         $('jbCompare').disabled = false;
                         $('jbCaption').textContent = item.Name + '. Nothing is saved.';
                     }).catch(function () {
@@ -501,6 +510,17 @@
                         }).then(function () { Dashboard.hideLoadingMsg(); });
                     }
                 });
+
+                // Show the floating preview only while the real one is scrolled out of view.
+                var frameVisible = true;
+                function updateMini() { $('jbMini').hidden = frameVisible || !previewUrl; }
+                if (window.IntersectionObserver) {
+                    new IntersectionObserver(function (entries) {
+                        frameVisible = entries[0].isIntersecting;
+                        updateMini();
+                    }).observe($('jbFrame'));
+                }
+                $('jbMini').addEventListener('click', function () { $('jbFrame').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
 
                 // Press and hold to compare with the original poster.
                 function showOriginal(on) {

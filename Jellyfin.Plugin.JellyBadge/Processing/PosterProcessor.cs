@@ -30,7 +30,7 @@ namespace Jellyfin.Plugin.JellyBadge.Processing;
 public sealed class PosterProcessor : IDisposable
 {
     // Bump when the drawing changes, so every poster gets re-rendered once.
-    private const int RenderVersion = 1;
+    private const int RenderVersion = 2;
 
     private readonly ILibraryManager _libraryManager;
     private readonly IProviderManager _providerManager;
