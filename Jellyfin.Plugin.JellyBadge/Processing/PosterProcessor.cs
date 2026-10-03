@@ -411,9 +411,10 @@ public sealed class PosterProcessor : IDisposable
     private List<Badge> GetBadges(BaseItem item, PluginConfiguration config)
     {
         List<Badge> technical;
+        IReadOnlyList<BaseItem> episodes = [];
         if (item is Series or Season)
         {
-            var episodes = _libraryManager.GetItemList(new InternalItemsQuery
+            episodes = _libraryManager.GetItemList(new InternalItemsQuery
             {
                 AncestorIds = [item.Id],
                 IncludeItemTypes = [BaseItemKind.Episode],
@@ -432,10 +433,23 @@ public sealed class PosterProcessor : IDisposable
             technical = BestVersion(item);
         }
 
-        // Seasons rarely have their own rating: show the series rating instead.
-        var rated = item is Season { CommunityRating: null, CriticRating: null } season ? season.Series ?? item : item;
+        // Seasons rarely have their own rating: use the average of their episodes when chosen, otherwise the series rating.
+        var (community, critic) = (item.CommunityRating, item.CriticRating);
+        if (item is Season season && community is null && critic is null)
+        {
+            if (config.SeasonRatingFromEpisodes)
+            {
+                (community, critic) = (Average(episodes.Select(e => e.CommunityRating)), Average(episodes.Select(e => e.CriticRating)));
+            }
+
+            if (community is null && critic is null)
+            {
+                (community, critic) = (season.Series?.CommunityRating, season.Series?.CriticRating);
+            }
+        }
+
         return technical
-            .Concat(BadgeDetector.Ratings(rated.CommunityRating, rated.CriticRating))
+            .Concat(BadgeDetector.Ratings(community, critic))
             .Where(b => b.Kind switch
             {
                 BadgeKind.Resolution => config.ShowResolution,
@@ -448,6 +462,12 @@ public sealed class PosterProcessor : IDisposable
                 _ => config.ShowCriticRating
             })
             .ToList();
+    }
+
+    private static float? Average(IEnumerable<float?> values)
+    {
+        var rated = values.OfType<float>().ToList();
+        return rated.Count == 0 ? null : rated.Average();
     }
 
     private static List<Badge> BestVersion(BaseItem item)

@@ -120,7 +120,7 @@ The **Activity** section on the same page lists what JellyBadge did recently and
 **It can**
 
 - Badge movie and series posters in the libraries you choose.
-- Badge season posters with the most common quality of their episodes and the series rating, when you switch that on under **Libraries**. Home screen rows often show the season poster for a new episode.
+- Badge season posters with the most common quality of their episodes, when you switch that on under **Libraries**. The rating is the series rating, or the average of the episode ratings if you choose that. Home screen rows often show the season poster for a new episode.
 - Use the best version of a movie that has several files.
 - Show the most common quality of a series or season, based on its episodes.
 - Badge episode thumbnails with the episode's own quality and rating, when you switch that on under **Libraries**. Switch it off again and the next run puts the original thumbnails back.

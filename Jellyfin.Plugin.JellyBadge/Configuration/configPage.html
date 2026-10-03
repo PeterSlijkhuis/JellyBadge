@@ -253,7 +253,11 @@
                             </button>
                             <button type="button" class="jb-tile" role="switch" id="jbSeasons" data-key="BadgeSeasons" aria-checked="false" style="margin-top:0.7em;width:100%;">
                                 <span class="jb-chip">SEASON</span>
-                                <span class="jb-tile-text"><b>Season posters</b><small>Most common quality of the episodes, with the series rating. Shown on home screens for new episodes.</small></span>
+                                <span class="jb-tile-text"><b>Season posters</b><small>Most common quality of the episodes. Shown on home screens for new episodes.</small></span>
+                                <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
+                            </button>
+                            <button type="button" class="jb-tile" role="switch" id="jbSeasonRating" data-key="SeasonRatingFromEpisodes" aria-checked="false" style="margin:0.5em 0 0 1.5em;width:calc(100% - 1.5em);">
+                                <span class="jb-tile-text"><b>Season rating from its episodes</b><small>Average of the episode ratings. Off shows the series rating.</small></span>
                                 <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
                             </button>
                             <button type="button" class="jb-tile" role="switch" id="jbCollections" data-key="BadgeCollections" aria-checked="false" style="margin-top:0.7em;width:100%;">
@@ -386,9 +390,10 @@
                             '<span class="jb-switch" aria-hidden="true" aria-checked="' + !!config[b[0]] + '"></span></button>';
                     }).join('');
 
-                    [['jbEpisodes', 'BadgeEpisodes'], ['jbSeasons', 'BadgeSeasons'], ['jbCollections', 'BadgeCollections']].forEach(function (t) {
+                    [['jbEpisodes', 'BadgeEpisodes'], ['jbSeasons', 'BadgeSeasons'], ['jbSeasonRating', 'SeasonRatingFromEpisodes'], ['jbCollections', 'BadgeCollections']].forEach(function (t) {
                         [$(t[0]), $(t[0]).querySelector('.jb-switch')].forEach(function (el) { el.setAttribute('aria-checked', String(!!config[t[1]])); });
                     });
+                    $('jbSeasonRating').hidden = !config.BadgeSeasons;
 
                     $('jbPoster').innerHTML = positions.map(function (p) {
                         return choice('jb-spot ' + p[1], p[0], config.Position, '', p[2]);
