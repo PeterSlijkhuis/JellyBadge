@@ -117,6 +117,20 @@ public sealed class PosterProcessorTests : IDisposable
     }
 
     [Fact]
+    public async Task ScanPointingBackAtMediaPosterReusesBadgedFile()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        var badged = CurrentPath();
+
+        // What a library scan does when a poster.jpg sits next to the media.
+        SetPoster(_item, _mediaPoster);
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(1, _saves);
+        Assert.Equal(badged, CurrentPath());
+    }
+
+    [Fact]
     public async Task RebadgesWhenInputsChange()
     {
         await _processor.ProcessAsync(_item, CancellationToken.None);

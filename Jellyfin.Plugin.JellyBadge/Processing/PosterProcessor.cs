@@ -85,13 +85,13 @@ public sealed class PosterProcessor : IDisposable
     }
 
     /// <summary>
-    /// Whether this item is a movie, series or (when switched on) episode or collection in an included library.
+    /// Whether this item is a movie, series, season or (when switched on) episode or collection in an included library.
     /// </summary>
     /// <param name="item">The item.</param>
     /// <returns>True if it should be badged.</returns>
     public bool IsCandidate(BaseItem item)
     {
-        if (item is not (Movie or Series or Episode or BoxSet) || item.IsVirtualItem
+        if (item is not (Movie or Series or Season or Episode or BoxSet) || item.IsVirtualItem
             || (item is Episode && !Config.BadgeEpisodes) || (item is BoxSet && !Config.BadgeCollections))
         {
             return false;
@@ -239,6 +239,7 @@ public sealed class PosterProcessor : IDisposable
         var config = Config;
         var badges = GetBadges(item, config);
         var state = LoadState(item.Id);
+        var (lastOutputPath, lastOutputHash) = (state?.OutputPath, state?.OutputHash);
         var info = item.GetImageInfo(ImageType.Primary, 0);
 
         // Done before: same image file as we left it and same badges and settings. Skip without reading the image.
@@ -295,6 +296,21 @@ public sealed class PosterProcessor : IDisposable
         }
 
         var inputHash = InputHash(state, badges, config);
+
+        // A library scan points items back at the poster next to the media. When our badged file is still
+        // there and still right, point the item back at it instead of drawing it again.
+        if (currentHash == state.OriginalHash && inputHash == state.InputHash && !string.IsNullOrEmpty(lastOutputHash)
+            && lastOutputPath != currentPath && File.Exists(lastOutputPath)
+            && Hash(await File.ReadAllBytesAsync(lastOutputPath, cancellationToken).ConfigureAwait(false)) == lastOutputHash)
+        {
+            state.OutputHash = lastOutputHash;
+            item.SetImagePath(ImageType.Primary, 0, _fileSystem.GetFileInfo(lastOutputPath));
+            RememberWrite(item);
+            await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, cancellationToken).ConfigureAwait(false);
+            MarkDone(item, state);
+            return;
+        }
+
         if (inputHash == state.InputHash && currentHash == state.OutputHash)
         {
             MarkDone(item, state);
@@ -395,11 +411,11 @@ public sealed class PosterProcessor : IDisposable
     private List<Badge> GetBadges(BaseItem item, PluginConfiguration config)
     {
         List<Badge> technical;
-        if (item is Series series)
+        if (item is Series or Season)
         {
             var episodes = _libraryManager.GetItemList(new InternalItemsQuery
             {
-                AncestorIds = [series.Id],
+                AncestorIds = [item.Id],
                 IncludeItemTypes = [BaseItemKind.Episode],
                 Recursive = true,
                 IsVirtualItem = false
@@ -416,8 +432,10 @@ public sealed class PosterProcessor : IDisposable
             technical = BestVersion(item);
         }
 
+        // Seasons rarely have their own rating: show the series rating instead.
+        var rated = item is Season { CommunityRating: null, CriticRating: null } season ? season.Series ?? item : item;
         return technical
-            .Concat(BadgeDetector.Ratings(item.CommunityRating, item.CriticRating))
+            .Concat(BadgeDetector.Ratings(rated.CommunityRating, rated.CriticRating))
             .Where(b => b.Kind switch
             {
                 BadgeKind.Resolution => config.ShowResolution,
