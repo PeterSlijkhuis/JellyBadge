@@ -64,6 +64,19 @@ public class BadgeDetectorTests
     }
 
     [Theory]
+    [InlineData(3, null, "2.1")]
+    [InlineData(3, "2.1", "2.1")]
+    [InlineData(6, "5.1(side)", "5.1")]
+    [InlineData(5, "5.0", "5.0")]
+    [InlineData(2, "stereo", "2.0")]
+    [InlineData(1, "mono", "")]
+    public void ReadsChannelLayout(int channels, string? layout, string expected)
+    {
+        var audio = new MediaStream { Type = MediaStreamType.Audio, Codec = "aac", Channels = channels, ChannelLayout = layout };
+        Assert.Equal(expected, Texts(BadgeDetector.BestVersion([new List<MediaStream> { audio }])));
+    }
+
+    [Theory]
     [InlineData("uhd-dolby-vision-atmos", "4K,DOLBY VISION,HEVC,ATMOS,7.1")]
     [InlineData("scope-sdr-dtshdma", "1080p,DTS-HD MA,5.1")]
     [InlineData("hd-hlg-eac3-atmos", "HLG,HEVC,ATMOS,5.1")]

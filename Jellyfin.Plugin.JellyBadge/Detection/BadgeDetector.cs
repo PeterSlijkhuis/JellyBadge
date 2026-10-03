@@ -168,14 +168,14 @@ public static partial class BadgeDetector
     }
 
     /// <summary>
-    /// Whether a badge marks something that stands out. Everyday quality (720p, SD, stereo, H.264) does not.
+    /// Whether a badge marks something that stands out. Everyday quality (720p, SD, stereo, 2.1, H.264) does not.
     /// </summary>
     /// <param name="badge">The badge.</param>
     /// <returns>False for everyday quality.</returns>
     public static bool IsPremium(Badge badge) => (badge.Kind, badge.Text) switch
     {
         (BadgeKind.Resolution, "720p" or "SD") => false,
-        (BadgeKind.AudioChannels, "2.0") => false,
+        (BadgeKind.AudioChannels, "2.0" or "2.1") => false,
         (BadgeKind.VideoCodec, "H.264") => false,
         _ => true
     };
@@ -256,13 +256,24 @@ public static partial class BadgeDetector
         return Ranked.None;
     }
 
-    private static Ranked AudioChannels(MediaStream audio) => audio.Channels switch
+    // The layout ffprobe reports ("5.1(side)", "2.1", "stereo") is most exact; the channel count covers files without one.
+    private static Ranked AudioChannels(MediaStream audio)
     {
-        >= 8 => new(3, "7.1"),
-        >= 6 => new(2, "5.1"),
-        2 => new(1, "2.0"),
-        _ => Ranked.None
-    };
+        var layout = ChannelLayout().Match(audio.ChannelLayout ?? string.Empty);
+        var text = layout.Success ? layout.Value : audio.Channels switch
+        {
+            >= 8 => "7.1",
+            >= 6 => "5.1",
+            3 => "2.1",
+            2 => "2.0",
+            _ => null
+        };
+
+        return text is null ? Ranked.None : new(Math.Max(1, audio.Channels ?? 0), text);
+    }
+
+    [GeneratedRegex(@"^\d\.\d")]
+    private static partial Regex ChannelLayout();
 
     private static bool Has(string? value, string part) => value?.Contains(part, StringComparison.OrdinalIgnoreCase) == true;
 
