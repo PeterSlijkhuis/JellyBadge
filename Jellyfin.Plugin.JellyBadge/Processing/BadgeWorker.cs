@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -20,6 +21,15 @@ namespace Jellyfin.Plugin.JellyBadge.Processing;
 /// </summary>
 public sealed class BadgeWorker : BackgroundService
 {
+    // Jellyfin's own tasks that never touch posters or the inputs of a badge. Any other task, including
+    // every plugin task, is followed by a check.
+    private static readonly HashSet<string> _harmlessTasks = new(StringComparer.Ordinal)
+    {
+        "CleanActivityLog", "DeleteTranscodeFiles", "PluginUpdates", "OptimizeDatabaseTask", "CleanLogFiles", "DeleteCacheFiles",
+        "MoveTrickplayImages", "AudioNormalization", "RefreshChapterImages", "TaskExtractMediaSegments", "RefreshTrickplayImages",
+        "DownloadLyrics", "KeyframeExtraction", "RefreshInternetChannels", "RefreshGuide", "RefreshPeople"
+    };
+
     private readonly ILibraryManager _libraryManager;
     private readonly ITaskManager _taskManager;
     private readonly PosterProcessor _processor;
@@ -111,7 +121,7 @@ public sealed class BadgeWorker : BackgroundService
     // each of them puts the badges back; items that are still fine are skipped without reading the image.
     private void OnTaskCompleted(object? sender, TaskCompletionEventArgs e)
     {
-        if (Plugin.Instance?.Configuration.Enabled == true && e.Task.ScheduledTask is not ApplyBadgesTask)
+        if (Plugin.Instance?.Configuration.Enabled == true && e.Task.ScheduledTask is not ApplyBadgesTask && !_harmlessTasks.Contains(e.Task.ScheduledTask.Key))
         {
             Activity.Info(_logger, "{Task} finished, checking all posters", e.Task.Name);
             _taskManager.QueueScheduledTask<ApplyBadgesTask>();
