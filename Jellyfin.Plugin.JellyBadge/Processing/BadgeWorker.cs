@@ -86,6 +86,7 @@ public sealed class BadgeWorker : BackgroundService
     {
         if (config is PluginConfiguration { Enabled: false })
         {
+            _logger.LogInformation("JellyBadge was switched off, restoring original posters");
             _ = Task.Run(async () =>
             {
                 try

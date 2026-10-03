@@ -131,6 +131,7 @@ public sealed class PosterProcessor : IDisposable
             else if (LoadState(item.Id) is { } state)
             {
                 // Excluded since we badged it (episodes switched off, library deselected): put its original back.
+                _logger.LogInformation("{Item} is no longer included, restoring its original poster", item.Name);
                 await RestoreAsync(item, state, cancellationToken).ConfigureAwait(false);
                 File.Delete(OriginalFile(item.Id, state));
                 File.Delete(StateFile(item.Id));
