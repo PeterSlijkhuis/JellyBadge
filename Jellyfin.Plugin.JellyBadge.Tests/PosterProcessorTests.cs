@@ -277,6 +277,46 @@ public sealed class PosterProcessorTests : IDisposable
     }
 
     [Fact]
+    public async Task PutsBadgedPosterBackRightAfterARefreshSwappedIt()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        var badged = CurrentPath();
+
+        SetPoster(_item, _mediaPoster);
+
+        Assert.True(await _processor.RepointAsync(_item, CancellationToken.None));
+        Assert.Equal(badged, CurrentPath());
+        Assert.Equal(1, _saves);
+        Assert.Empty(_processor.FindChanged());
+        Assert.False(await _processor.RepointAsync(_item, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SwappedPosterGetsItsBadgesBackEvenWhileMediaInfoIsMissing()
+    {
+        var episode = new Episode { Id = Guid.NewGuid() };
+        _library.Setup(l => l.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([episode]);
+        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [new Badge(BadgeKind.Resolution, "4K")] });
+        var badged = CurrentPath();
+
+        // A scan swaps in the original and has the episode's media info half read.
+        SetPoster(_item, _mediaPoster);
+        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [] });
+
+        Assert.Equal(badged, CurrentPath());
+        Assert.Equal(1, _saves);
+    }
+
+    [Fact]
+    public async Task ARealNewPosterIsNotSwappedBack()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        SetPoster(_item, WritePoster(Path.Combine(_root, "media", "new.jpg"), SKColors.DarkOrange));
+
+        Assert.False(await _processor.RepointAsync(_item, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task KeepsBadgesWhenTheLibraryCannotBeTold()
     {
         await _processor.ProcessAsync(_item, CancellationToken.None);

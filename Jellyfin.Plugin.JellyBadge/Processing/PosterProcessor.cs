@@ -229,6 +229,49 @@ public sealed class PosterProcessor : IDisposable
         return changed;
     }
 
+    /// <summary>
+    /// Points the item back at its badged poster when a scan or refresh swapped in the original. No drawing and no
+    /// waiting for other posters, so the badges are back within moments.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the badged poster was put back.</returns>
+    public async Task<bool> RepointAsync(BaseItem item, CancellationToken cancellationToken)
+    {
+        if (!Config.Enabled || !_busy.TryAdd(item.Id, 0))
+        {
+            return false;
+        }
+
+        try
+        {
+            return LoadState(item.Id, item) is { } state && await TryRepointAsync(item, state, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _busy.TryRemove(item.Id, out _);
+        }
+    }
+
+    private async Task<bool> TryRepointAsync(BaseItem item, PosterState state, CancellationToken cancellationToken)
+    {
+        // Only when our badged file is untouched and the poster now shown is exactly the original we backed up.
+        var info = item.GetImageInfo(ImageType.Primary, 0);
+        if (!Config.Enabled || info is null || !info.IsLocalFile || state.OutputHash.Length == 0 || state.OutputHash == state.OriginalHash
+            || info.Path == state.OutputPath || !File.Exists(state.OutputPath) || File.GetLastWriteTimeUtc(state.OutputPath) != state.OutputModified
+            || !File.Exists(info.Path)
+            || Hash(await File.ReadAllBytesAsync(info.Path, cancellationToken).ConfigureAwait(false)) != state.OriginalHash)
+        {
+            return false;
+        }
+
+        item.SetImagePath(ImageType.Primary, 0, _fileSystem.GetFileInfo(state.OutputPath));
+        RememberWrite(item);
+        await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, cancellationToken).ConfigureAwait(false);
+        MarkDone(item, state);
+        return true;
+    }
+
     // A library filter that cannot tell where the item lives (mid-scan) says nothing: never restore on that.
     private bool LibraryUnknown(BaseItem item)
         => Config.Libraries.Length > 0 && _libraryManager.GetCollectionFolders(item).Count == 0;
@@ -363,16 +406,25 @@ public sealed class PosterProcessor : IDisposable
     private async Task ProcessCoreAsync(BaseItem item, ConcurrentDictionary<Guid, List<Badge>>? episodeCache, CancellationToken cancellationToken)
     {
         var config = Config;
-        var badges = GetBadges(item, config, episodeCache, out var mediaInfoMissing);
         var state = LoadState(item.Id, item);
 
+        // Swapped back to the original by a scan or refresh: badged file first, then see whether the badges changed.
+        if (state is not null)
+        {
+            await TryRepointAsync(item, state, cancellationToken).ConfigureAwait(false);
+        }
+
+        var badges = GetBadges(item, config, episodeCache, out var mediaInfoMissing);
+
         // Media info is briefly gone while Jellyfin scans a file again. Drawing now would drop the quality badges,
-        // or put the original back, so keep what is there; the regular check comes back once the info is in.
+        // so keep the badged poster that is there; the regular check comes back once the info is in.
         // ponytail: a file that never gets media info keeps its last badges, even when its rating changes.
-        if (mediaInfoMissing && state is not null && state.OutputHash.Length > 0 && state.OutputHash != state.OriginalHash)
+        if (mediaInfoMissing && state is not null && state.OutputHash.Length > 0 && state.OutputHash != state.OriginalHash
+            && item.GetImageInfo(ImageType.Primary, 0)?.Path == state.OutputPath)
         {
             return;
         }
+
         var (lastOutputPath, lastOutputHash) = (state?.OutputPath, state?.OutputHash);
         var info = item.GetImageInfo(ImageType.Primary, 0);
 
