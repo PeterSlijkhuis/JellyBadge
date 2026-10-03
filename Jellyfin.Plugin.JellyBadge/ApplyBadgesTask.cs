@@ -40,7 +40,7 @@ public class ApplyBadgesTask : IScheduledTask
     public string Key => "JellyBadgeApply";
 
     /// <inheritdoc />
-    public string Description => "Stamps badges onto movie, series and season posters, and episode thumbnails and collections when switched on.";
+    public string Description => "Stamps badges onto movie and series posters, and seasons, episode thumbnails and collections when switched on.";
 
     /// <inheritdoc />
     public string Category => "JellyBadge";
@@ -56,7 +56,7 @@ public class ApplyBadgesTask : IScheduledTask
 
         var items = _libraryManager.GetItemList(new InternalItemsQuery
         {
-            // Episodes and collections always, so switching them off restores the ones badged before.
+            // Seasons, episodes and collections always, so switching them off restores the ones badged before.
             IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series, BaseItemKind.Season, BaseItemKind.Episode, BaseItemKind.BoxSet],
             Recursive = true,
             IsVirtualItem = false

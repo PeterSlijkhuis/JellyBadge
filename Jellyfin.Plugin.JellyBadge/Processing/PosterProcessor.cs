@@ -85,14 +85,14 @@ public sealed class PosterProcessor : IDisposable
     }
 
     /// <summary>
-    /// Whether this item is a movie, series, season or (when switched on) episode or collection in an included library.
+    /// Whether this item is a movie, series or (when switched on) season, episode or collection in an included library.
     /// </summary>
     /// <param name="item">The item.</param>
     /// <returns>True if it should be badged.</returns>
     public bool IsCandidate(BaseItem item)
     {
         if (item is not (Movie or Series or Season or Episode or BoxSet) || item.IsVirtualItem
-            || (item is Episode && !Config.BadgeEpisodes) || (item is BoxSet && !Config.BadgeCollections))
+            || (item is Episode && !Config.BadgeEpisodes) || (item is Season && !Config.BadgeSeasons) || (item is BoxSet && !Config.BadgeCollections))
         {
             return false;
         }

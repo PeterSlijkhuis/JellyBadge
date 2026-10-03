@@ -93,6 +93,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether episode thumbnails get badged too.</summary>
     public bool BadgeEpisodes { get; set; }
 
+    /// <summary>Gets or sets a value indicating whether season posters get badged too.</summary>
+    public bool BadgeSeasons { get; set; }
+
     /// <summary>Gets or sets a value indicating whether collection posters get badged too.</summary>
     public bool BadgeCollections { get; set; }
 
