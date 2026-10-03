@@ -172,7 +172,7 @@ Kometa is a separate script you run on a schedule, built around Plex. JellyBadge
 <details>
 <summary><b>My badges disappeared after the nightly tasks. What happened?</b></summary>
 
-Some scheduled tasks and outside tools (metadata plugins, Sonarr, Radarr) can put the original poster back. JellyBadge checks all posters again after every other scheduled task finishes and badges them again, which takes seconds when nothing changed. A library scan or metadata refresh often swaps a badged poster back to the poster next to your media: JellyBadge puts the badged one back within a second, ahead of everything else it is doing. On top of that it looks every 5 minutes for badged posters that were swapped behind its back and badges them again, and while a scan has a file's media info half read, it keeps the badges it has instead of dropping them. The **Activity** section shows what changed and what was badged afterwards.
+Some scheduled tasks and outside tools (metadata plugins, Sonarr, Radarr) can put the original poster back. JellyBadge checks all posters again after every other scheduled task finishes and badges them again, which takes seconds when nothing changed. A library scan or metadata refresh often swaps a badged poster back to the poster next to your media: JellyBadge puts the badged one back within a second, ahead of everything else it is doing. On top of that it looks 30 seconds after the server starts, and every 5 minutes after that, for badged posters that were swapped behind its back and badges them again, and while a scan has a file's media info half read, it keeps the badges it has instead of dropping them. The **Activity** section shows what changed and what was badged afterwards.
 </details>
 
 <details>

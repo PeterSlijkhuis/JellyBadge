@@ -177,7 +177,8 @@ public sealed class BadgeWorker : BackgroundService
                     Activity.Info(_logger, "A scan or refresh put the original back on {Count} posters, badges are back", count);
                 }
 
-                if (ticks % 60 == 0)
+                // 30 seconds after startup, then every 5 minutes: a swap just before a restart is fixed right away.
+                if (ticks % 60 == 6)
                 {
                     CheckBadgesStayed();
                 }
