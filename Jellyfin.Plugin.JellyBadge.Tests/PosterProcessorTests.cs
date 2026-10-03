@@ -85,6 +85,7 @@ public sealed class PosterProcessorTests : IDisposable
         Assert.Equal(before, Bytes(_mediaPoster));
         Assert.Equal(before, Bytes(Directory.GetFiles(Path.Combine(DataDir, "originals")).Single()));
         Assert.NotEqual(before, Bytes(CurrentPath()));
+        Assert.StartsWith("Badged Harbor Watch: ", Activity.Read()[0].Split('\t')[2], StringComparison.Ordinal);
     }
 
     [Fact]

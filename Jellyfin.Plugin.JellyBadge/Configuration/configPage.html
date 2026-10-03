@@ -167,6 +167,14 @@
             #JellyBadgeConfigPage .jb-caption { font-size: 0.88em; opacity: 0.7; }
 
             /* Danger zone and action bar */
+            #JellyBadgeConfigPage .jb-log { max-height: 22em; overflow-y: auto; border: 1px solid var(--jb-line); border-radius: 10px; font-size: 0.88em; }
+            #JellyBadgeConfigPage .jb-log-row { display: grid; grid-template-columns: auto 1fr; gap: 0.15em 0.8em; padding: 0.55em 0.8em; border-bottom: 1px solid var(--jb-line); }
+            #JellyBadgeConfigPage .jb-log-row:last-child { border-bottom: 0; }
+            #JellyBadgeConfigPage .jb-log-time { opacity: 0.6; white-space: nowrap; font-variant-numeric: tabular-nums; }
+            #JellyBadgeConfigPage .jb-log-msg { overflow-wrap: anywhere; }
+            #JellyBadgeConfigPage .jb-log-row.Warning .jb-log-msg { color: #e0a33a; }
+            #JellyBadgeConfigPage .jb-log-row.Error .jb-log-msg { color: #e05a5a; }
+            #JellyBadgeConfigPage .jb-log-empty { padding: 1em; opacity: 0.6; }
             #JellyBadgeConfigPage .jb-danger { border-color: rgba(220, 70, 70, 0.45); }
             #JellyBadgeConfigPage .jb-danger-row { display: flex; gap: 1em; align-items: center; justify-content: space-between; flex-wrap: wrap; }
             #JellyBadgeConfigPage .jb-btn {
@@ -248,6 +256,15 @@
                                 <span class="jb-tile-text"><b>Collection posters</b><small>Badge collections with the most common quality of their movies.</small></span>
                                 <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
                             </button>
+                        </section>
+
+                        <section class="jb-card">
+                            <h2>Activity</h2>
+                            <div class="jb-danger-row" style="margin-bottom:0.8em;">
+                                <p class="jb-hint" style="margin:0;flex:1 1 300px;">What JellyBadge did recently and why, newest first.</p>
+                                <button type="button" class="jb-btn" id="jbActivityRefresh">Refresh</button>
+                            </div>
+                            <div class="jb-log" id="jbActivity" aria-live="polite"><div class="jb-log-empty">Loading...</div></div>
                         </section>
 
                         <section class="jb-card jb-danger">
@@ -333,6 +350,18 @@
                     }).then(function (r) {
                         if (!r.ok) { throw new Error(r.status); }
                         return r;
+                    });
+                }
+
+                function loadActivity() {
+                    ApiClient.getJSON(ApiClient.getUrl('JellyBadge/Activity')).then(function (lines) {
+                        $('jbActivity').innerHTML = lines.length ? lines.slice(0, 300).map(function (line) {
+                            var parts = line.split('\t');
+                            return '<div class="jb-log-row ' + esc(parts[1]) + '"><span class="jb-log-time">' + esc(parts[0]) +
+                                '</span><span class="jb-log-msg">' + esc(parts.slice(2).join(' ')) + '</span></div>';
+                        }).join('') : '<div class="jb-log-empty">Nothing yet. Badging, restores and errors show up here.</div>';
+                    }).catch(function () {
+                        $('jbActivity').innerHTML = '<div class="jb-log-empty">Could not load the activity.</div>';
                     });
                 }
 
@@ -497,6 +526,10 @@
                         }).catch(function () { /* save already reported */ });
                         return;
                     }
+                    if (el.id === 'jbActivityRefresh') {
+                        loadActivity();
+                        return;
+                    }
                     if (el.id === 'jbRestore') {
                         if (!window.confirm('Remove all badges, put every original poster back and turn JellyBadge off?')) { return; }
                         Dashboard.showLoadingMsg();
@@ -560,6 +593,7 @@
                 });
 
                 page.addEventListener('pageshow', function () {
+                    loadActivity();
                     Dashboard.showLoadingMsg();
                     Promise.all([ApiClient.getPluginConfiguration(pluginId), ApiClient.getVirtualFolders(), search('')]).then(function (results) {
                         config = results[0];

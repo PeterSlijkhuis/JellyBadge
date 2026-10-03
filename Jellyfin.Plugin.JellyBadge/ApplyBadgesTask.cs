@@ -74,11 +74,13 @@ public class ApplyBadgesTask : IScheduledTask
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    _logger.LogError(ex, "Failed to badge {Item}", item.Name);
+                    Activity.Log(_logger, LogLevel.Error, ex, "Failed to badge {Item}", item.Name);
                 }
 
                 progress.Report(100.0 * Interlocked.Increment(ref done) / items.Count);
             }).ConfigureAwait(false);
+
+        Activity.Info(_logger, "Checked {Count} items", items.Count);
     }
 
     /// <inheritdoc />

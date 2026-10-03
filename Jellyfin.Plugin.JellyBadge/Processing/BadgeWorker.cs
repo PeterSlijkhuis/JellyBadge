@@ -82,7 +82,7 @@ public sealed class BadgeWorker : BackgroundService
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogError(ex, "Failed to badge {Item}", item.Name);
+                Activity.Log(_logger, LogLevel.Error, ex, "Failed to badge {Item}", item.Name);
             }
         }
     }
@@ -92,7 +92,7 @@ public sealed class BadgeWorker : BackgroundService
     {
         if (config is PluginConfiguration { Enabled: false })
         {
-            _logger.LogInformation("JellyBadge was switched off, restoring original posters");
+            Activity.Info(_logger, "JellyBadge was switched off, restoring original posters");
             _ = Task.Run(async () =>
             {
                 try
@@ -101,7 +101,7 @@ public sealed class BadgeWorker : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to restore original posters");
+                    Activity.Log(_logger, LogLevel.Error, ex, "Failed to restore original posters");
                 }
             });
         }
@@ -113,6 +113,7 @@ public sealed class BadgeWorker : BackgroundService
     {
         if (Plugin.Instance?.Configuration.Enabled == true && e.Task.ScheduledTask is not ApplyBadgesTask)
         {
+            Activity.Info(_logger, "{Task} finished, checking all posters", e.Task.Name);
             _taskManager.QueueScheduledTask<ApplyBadgesTask>();
         }
     }

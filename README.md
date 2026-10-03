@@ -113,6 +113,8 @@ Open **Dashboard > Plugins > JellyBadge**.
 
 JellyBadge is off after installing, so nothing changes until you switch it on. Progress of the first run shows under **Dashboard > Scheduled Tasks > Apply poster badges**.
 
+The **Activity** section on the same page lists what JellyBadge did recently and why: posters it badged, posters that were replaced, restores and errors.
+
 ## What it can and cannot do
 
 **It can**
@@ -152,6 +154,12 @@ Uninstalling JellyBadge does the same before it goes, so no badged poster is lef
 <summary><b>How is this different from Kometa or Plex Meta Manager overlays?</b></summary>
 
 Kometa is a separate script you run on a schedule, built around Plex. JellyBadge is a Jellyfin plugin: you install it from the plugin catalog, set it up on its settings page with a live preview, and it badges new items by itself as they arrive. One button puts all original posters back.
+</details>
+
+<details>
+<summary><b>My badges disappeared after the nightly tasks. What happened?</b></summary>
+
+Some scheduled tasks and outside tools (metadata plugins, Sonarr, Radarr) can put the original poster back. JellyBadge checks all posters again after every other scheduled task finishes and badges them again, which takes seconds when nothing changed. The **Activity** section shows which task ran and what was badged afterwards.
 </details>
 
 <details>
