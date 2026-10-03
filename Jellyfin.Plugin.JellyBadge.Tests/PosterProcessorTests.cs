@@ -226,6 +226,18 @@ public sealed class PosterProcessorTests : IDisposable
     }
 
     [Fact]
+    public void LeavingASeriesAloneCoversItsSeasonsAndEpisodes()
+    {
+        Plugin.Instance!.Configuration.BadgeSeasons = true;
+        Plugin.Instance.Configuration.BadgeEpisodes = true;
+        Plugin.Instance.Configuration.ExcludedItems = [_item.Id.ToString("N")];
+
+        Assert.False(_processor.IsCandidate(new Season { Id = Guid.NewGuid(), SeriesId = _item.Id }));
+        Assert.False(_processor.IsCandidate(new Episode { Id = Guid.NewGuid(), SeriesId = _item.Id }));
+        Assert.True(_processor.IsCandidate(new Episode { Id = Guid.NewGuid(), SeriesId = Guid.NewGuid() }));
+    }
+
+    [Fact]
     public async Task SeasonRatedZeroFallsBackToTheSeries()
     {
         Plugin.Instance!.Configuration.BadgeSeasons = true;

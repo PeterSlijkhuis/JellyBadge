@@ -199,6 +199,11 @@
             #JellyBadgeConfigPage .jb-log-row.Error .jb-log-msg { color: #e05a5a; }
             #JellyBadgeConfigPage .jb-log-empty { padding: 1em; opacity: 0.6; }
             #JellyBadgeConfigPage .jb-log.problems .jb-log-row.Info { display: none; }
+            #JellyBadgeConfigPage .jb-no-problems { display: none; }
+            #JellyBadgeConfigPage .jb-log.problems .jb-no-problems { display: block; }
+            #JellyBadgeConfigPage .jb-actions { display: flex; gap: 0.5em; flex: 1 1 300px; justify-content: flex-end; }
+            #JellyBadgeConfigPage .jb-actions .jb-btn { padding-left: 0.9em; padding-right: 0.9em; white-space: nowrap; }
+            @media (max-width: 600px) { #JellyBadgeConfigPage .jb-actions .jb-btn { flex: 1 1 0; } }
             #JellyBadgeConfigPage .jb-btn[aria-pressed="true"] { border-color: currentColor; font-weight: 600; }
             #JellyBadgeConfigPage .jb-excluded { display: flex; align-items: center; gap: 0.6em; padding: 0.35em 0; }
             #JellyBadgeConfigPage .jb-excluded span { flex: 1; overflow-wrap: anywhere; }
@@ -321,9 +326,11 @@
                             <h2>Activity</h2>
                             <div class="jb-danger-row" style="margin-bottom:0.8em;">
                                 <p class="jb-hint" style="margin:0;flex:1 1 300px;">What JellyBadge did recently and why, newest first. <b id="jbBadged"></b></p>
-                                <button type="button" class="jb-btn" id="jbProblems" aria-pressed="false">Only problems</button>
-                                <button type="button" class="jb-btn" id="jbActivityRefresh">Refresh</button>
-                                <button type="button" class="jb-btn" id="jbActivityClear">Clear</button>
+                                <div class="jb-actions">
+                                    <button type="button" class="jb-btn" id="jbProblems" aria-pressed="false">Only problems</button>
+                                    <button type="button" class="jb-btn" id="jbActivityRefresh">Refresh</button>
+                                    <button type="button" class="jb-btn" id="jbActivityClear">Clear</button>
+                                </div>
                             </div>
                             <div class="jb-log" id="jbActivity" aria-live="polite"><div class="jb-log-empty">Loading...</div></div>
                         </section>
@@ -430,7 +437,8 @@
                             var parts = line.split('\t');
                             return '<div class="jb-log-row ' + esc(parts[1]) + '"><span class="jb-log-time">' + esc(parts[0]) +
                                 '</span><span class="jb-log-msg">' + esc(parts.slice(2).join(' ')) + '</span></div>';
-                        }).join('') : '<div class="jb-log-empty">Nothing yet. Badging, restores and errors show up here.</div>';
+                        }).join('') + (lines.some(function (line) { return /\t(Warning|Error)\t/.test(line); }) ? '' : '<div class="jb-log-empty jb-no-problems">No warnings or errors.</div>')
+                            : '<div class="jb-log-empty">Nothing yet. Badging, restores and errors show up here.</div>';
                     }).catch(function () {
                         $('jbActivity').innerHTML = '<div class="jb-log-empty">Could not load the activity.</div>';
                     });
@@ -495,12 +503,17 @@
                     $('jbDirty').innerHTML = dirty ? '<span class="jb-dot"></span>Unsaved changes' : (config.Enabled ? 'All changes saved. Posters update in the background.' : 'Badges are off. Switch them on at the top, then save.');
                 }
 
-                function isExcluded(id) { return (config.ExcludedItems || []).indexOf(id) !== -1; }
+                function isExcluded(id) { return !!id && (config.ExcludedItems || []).indexOf(id) !== -1; }
+
+                // Left alone itself, or through its series or season.
+                function leftAlone(i) { return !!i && (isExcluded(i.Id) || isExcluded(i.SeriesId) || isExcluded(i.SeasonId)); }
 
                 function renderExcluded() {
                     var ids = config.ExcludedItems || [];
-                    $('jbExclude').disabled = !item;
-                    $('jbExclude').textContent = item && isExcluded(item.Id) ? 'Badge this poster again' : 'Leave this poster alone';
+                    var inherited = item && !isExcluded(item.Id) && leftAlone(item);
+                    $('jbExclude').disabled = !item || inherited;
+                    $('jbExclude').textContent = inherited ? 'Left alone with its ' + (isExcluded(item.SeasonId) ? 'season' : 'series')
+                        : item && isExcluded(item.Id) ? 'Badge this poster again' : 'Leave this poster alone';
                     $('jbExcludedBox').hidden = !ids.length;
                     var key = ids.join(',');
                     if ($('jbExcluded').getAttribute('data-ids') === key) { return; }
@@ -520,7 +533,7 @@
                     config.ExcludedItems = isExcluded(id)
                         ? config.ExcludedItems.filter(function (x) { return x !== id; })
                         : (config.ExcludedItems || []).concat([id]);
-                    render();
+                    changed();
                 }
 
                 function renderLibraries(folders) {
@@ -558,7 +571,7 @@
                     badges.forEach(function (b) { none[b[0]] = false; });
                     var id = item.Id;
                     Promise.all([
-                        call('JellyBadge/Preview/' + id, config).then(function (r) { return r.blob(); }),
+                        call('JellyBadge/Preview/' + id, leftAlone(item) ? none : config).then(function (r) { return r.blob(); }),
                         originalUrl ? Promise.resolve(null) : call('JellyBadge/Preview/' + id, none).then(function (r) { return r.blob(); })
                     ]).then(function (blobs) {
                         if (!item || item.Id !== id) { return; }
@@ -569,7 +582,7 @@
                         $('jbMini').src = previewUrl;
                         updateMini();
                         $('jbCompare').disabled = false;
-                        $('jbCaption').textContent = item.Name + '. Nothing is saved.';
+                        $('jbCaption').textContent = item.Name + (leftAlone(item) ? '. Left alone, keeps its original poster.' : '. Nothing is saved.');
                     }).catch(function () {
                         frame.innerHTML = '<div class="jb-empty">This item has no poster yet.</div>';
                         $('jbCompare').disabled = true;

@@ -9,6 +9,7 @@ using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using Jellyfin.Plugin.JellyBadge.Configuration;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Hosting;
@@ -33,22 +34,26 @@ public sealed class BadgeWorker : BackgroundService
 
     private readonly ILibraryManager _libraryManager;
     private readonly ITaskManager _taskManager;
+    private readonly IPluginManager _pluginManager;
     private readonly PosterProcessor _processor;
     private readonly ILogger<BadgeWorker> _logger;
     private readonly Channel<Guid> _queue = Channel.CreateUnbounded<Guid>();
     private readonly ConcurrentDictionary<Guid, byte> _pending = new();
+    private bool _wasEnabled;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BadgeWorker"/> class.
     /// </summary>
     /// <param name="libraryManager">Library manager.</param>
     /// <param name="taskManager">Task manager.</param>
+    /// <param name="pluginManager">Plugin manager.</param>
     /// <param name="processor">Poster processor.</param>
     /// <param name="logger">Logger.</param>
-    public BadgeWorker(ILibraryManager libraryManager, ITaskManager taskManager, PosterProcessor processor, ILogger<BadgeWorker> logger)
+    public BadgeWorker(ILibraryManager libraryManager, ITaskManager taskManager, IPluginManager pluginManager, PosterProcessor processor, ILogger<BadgeWorker> logger)
     {
         _libraryManager = libraryManager;
         _taskManager = taskManager;
+        _pluginManager = pluginManager;
         _processor = processor;
         _logger = logger;
     }
@@ -61,24 +66,30 @@ public sealed class BadgeWorker : BackgroundService
         _libraryManager.ItemRemoved += OnItemRemoved;
         _taskManager.TaskCompleted += OnTaskCompleted;
         Plugin.Instance!.ConfigurationChanged += OnConfigurationChanged;
+        _wasEnabled = Plugin.Instance.Configuration.Enabled;
         return base.StartAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public override Task StopAsync(CancellationToken cancellationToken)
+    public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        // Disabling in the plugin list asks for a restart: if that comes before the next check, restore now.
+        await RestoreIfDisabledAsync(cancellationToken).ConfigureAwait(false);
+
         _libraryManager.ItemAdded -= OnItemChanged;
         _libraryManager.ItemUpdated -= OnItemChanged;
         _libraryManager.ItemRemoved -= OnItemRemoved;
         _taskManager.TaskCompleted -= OnTaskCompleted;
         Plugin.Instance!.ConfigurationChanged -= OnConfigurationChanged;
         _queue.Writer.TryComplete();
-        return base.StopAsync(cancellationToken);
+        await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _ = WatchPluginListAsync(stoppingToken);
+
         // ponytail: one consumer, events trickle in one at a time; the scheduled task does the bulk work in parallel.
         await foreach (var id in _queue.Reader.ReadAllAsync(stoppingToken).ConfigureAwait(false))
         {
@@ -100,15 +111,55 @@ public sealed class BadgeWorker : BackgroundService
         }
     }
 
-    // Saving the settings redraws what changed; switching JellyBadge off puts the originals back.
+    // Jellyfin tells a plugin nothing when it is disabled in the plugin list, and after the restart the plugin
+    // no longer runs. So look every few seconds and put the originals back while we still can.
+    private async Task WatchPluginListAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
+            {
+                await RestoreIfDisabledAsync(stoppingToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down.
+        }
+    }
+
+    private async Task RestoreIfDisabledAsync(CancellationToken cancellationToken)
+    {
+        if (Plugin.Instance?.Configuration.Enabled != true
+            || _pluginManager.GetPlugin(Plugin.Instance.Id)?.Manifest.Status != PluginStatus.Disabled)
+        {
+            return;
+        }
+
+        Activity.Info(_logger, "JellyBadge was disabled in the plugin list, restoring original posters");
+        try
+        {
+            _wasEnabled = false;
+            await _processor.RestoreAllAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Activity.Log(_logger, LogLevel.Error, ex, "Failed to restore original posters");
+        }
+    }
+
+    // Saving the settings redraws what changed; switching JellyBadge off puts the originals back, once.
     private void OnConfigurationChanged(object? sender, BasePluginConfiguration config)
     {
-        if (config is PluginConfiguration { Enabled: true })
+        var wasEnabled = _wasEnabled;
+        _wasEnabled = config is PluginConfiguration { Enabled: true };
+        if (_wasEnabled)
         {
             Activity.Info(_logger, "Settings saved, checking all posters");
             _taskManager.QueueScheduledTask<ApplyBadgesTask>();
         }
-        else if (config is PluginConfiguration { Enabled: false })
+        else if (wasEnabled)
         {
             Activity.Info(_logger, "JellyBadge was switched off, restoring original posters");
             _ = Task.Run(async () =>

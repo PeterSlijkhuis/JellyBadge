@@ -102,7 +102,15 @@ public sealed class PosterProcessor : IDisposable
             return false;
         }
 
-        if (Config.ExcludedItems.Contains(item.Id.ToString("N"), StringComparer.OrdinalIgnoreCase))
+        // Leaving a series or season alone covers its seasons and episodes too.
+        var excluded = Config.ExcludedItems;
+        Guid[] ids = item switch
+        {
+            Episode e => [e.Id, e.SeriesId, e.SeasonId],
+            Season se => [se.Id, se.SeriesId],
+            _ => [item.Id]
+        };
+        if (ids.Any(id => excluded.Contains(id.ToString("N"), StringComparer.OrdinalIgnoreCase)))
         {
             return false;
         }
