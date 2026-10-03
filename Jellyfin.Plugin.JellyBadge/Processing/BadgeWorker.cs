@@ -116,16 +116,44 @@ public sealed class BadgeWorker : BackgroundService
     private async Task WatchPluginListAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        var ticks = 0;
         try
         {
             while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
                 await RestoreIfDisabledAsync(stoppingToken).ConfigureAwait(false);
+                if (++ticks % 60 == 0)
+                {
+                    CheckBadgesStayed();
+                }
             }
         }
         catch (OperationCanceledException)
         {
             // Shutting down.
+        }
+    }
+
+    // Every 5 minutes: anything that swapped a badged poster behind our back (a scan, another plugin, a tool
+    // writing to disk) gets its badges back, without waiting for the next scheduled task.
+    private void CheckBadgesStayed()
+    {
+        if (Plugin.Instance?.Configuration.Enabled != true)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var item in _processor.FindChanged())
+            {
+                Activity.Info(_logger, "Poster of {Item} was changed outside JellyBadge, checking it again", item.Name);
+                Enqueue(item.Id);
+            }
+        }
+        catch (IOException ex)
+        {
+            Activity.Log(_logger, LogLevel.Warning, ex, "Could not check the badged posters");
         }
     }
 

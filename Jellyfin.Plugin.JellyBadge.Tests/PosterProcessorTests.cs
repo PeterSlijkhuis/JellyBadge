@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyBadge.Configuration;
+using Jellyfin.Plugin.JellyBadge.Detection;
 using Jellyfin.Plugin.JellyBadge.Processing;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
@@ -247,6 +248,46 @@ public sealed class PosterProcessorTests : IDisposable
         await _processor.ProcessAsync(season, CancellationToken.None);
 
         Assert.Equal("Badged Season 1: 8.4", Activity.Read()[0].Split('\t')[2]);
+    }
+
+    [Fact]
+    public async Task FindsPostersChangedBehindOurBack()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        Assert.Empty(_processor.FindChanged());
+
+        SetPoster(_item, _mediaPoster);
+        Assert.Equal(_item.Id, Assert.Single(_processor.FindChanged()).Id);
+    }
+
+    [Fact]
+    public async Task KeepsBadgesWhileMediaInfoIsMissing()
+    {
+        var episode = new Episode { Id = Guid.NewGuid() };
+        _library.Setup(l => l.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([episode]);
+        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [new Badge(BadgeKind.Resolution, "4K")] });
+        var badged = Bytes(CurrentPath());
+
+        // Mid-scan: the episode has no media info and the rating is not back yet.
+        _item.CommunityRating = null;
+        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [] });
+
+        Assert.Equal(1, _saves);
+        Assert.Equal(badged, Bytes(CurrentPath()));
+    }
+
+    [Fact]
+    public async Task KeepsBadgesWhenTheLibraryCannotBeTold()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        var badged = CurrentPath();
+        Plugin.Instance!.Configuration.Libraries = [Guid.NewGuid().ToString()];
+        _library.Setup(l => l.GetCollectionFolders(_item)).Returns([]);
+
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(badged, CurrentPath());
+        Assert.Single(Directory.GetFiles(Path.Combine(DataDir, "state")));
     }
 
     [Fact]

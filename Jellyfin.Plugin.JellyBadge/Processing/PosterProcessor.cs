@@ -202,6 +202,37 @@ public sealed class PosterProcessor : IDisposable
             : 0;
     }
 
+    /// <summary>
+    /// Items whose poster is no longer the one JellyBadge left, found without reading any image.
+    /// </summary>
+    /// <returns>The items to check again.</returns>
+    public List<BaseItem> FindChanged()
+    {
+        var stateDir = Path.Combine(DataDir, "state");
+        var changed = new List<BaseItem>();
+        foreach (var file in Directory.Exists(stateDir) ? Directory.GetFiles(stateDir, "*.json") : [])
+        {
+            if (!Guid.TryParse(Path.GetFileNameWithoutExtension(file), out var id) || _libraryManager.GetItemById(id) is not { } item
+                || TryRead(file) is not { } state || state.OutputHash.Length == 0)
+            {
+                continue;
+            }
+
+            var info = item.GetImageInfo(ImageType.Primary, 0);
+            if (info is null || info.Path != state.OutputPath || info.DateModified != state.OutputModified
+                || !File.Exists(info.Path) || File.GetLastWriteTimeUtc(info.Path) != state.OutputModified)
+            {
+                changed.Add(item);
+            }
+        }
+
+        return changed;
+    }
+
+    // A library filter that cannot tell where the item lives (mid-scan) says nothing: never restore on that.
+    private bool LibraryUnknown(BaseItem item)
+        => Config.Libraries.Length > 0 && _libraryManager.GetCollectionFolders(item).Count == 0;
+
     private async Task ProcessGatedAsync(BaseItem item, ConcurrentDictionary<Guid, List<Badge>>? episodeCache, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -217,7 +248,7 @@ public sealed class PosterProcessor : IDisposable
             {
                 await ProcessCoreAsync(item, episodeCache, cancellationToken).ConfigureAwait(false);
             }
-            else if (LoadState(item.Id, item) is { } state)
+            else if (!item.IsVirtualItem && !LibraryUnknown(item) && LoadState(item.Id, item) is { } state)
             {
                 // Excluded since we badged it (episodes switched off, library deselected): put its original back.
                 Activity.Info(_logger, "{Item} is no longer included, restoring its original poster", item.Name);
@@ -332,8 +363,16 @@ public sealed class PosterProcessor : IDisposable
     private async Task ProcessCoreAsync(BaseItem item, ConcurrentDictionary<Guid, List<Badge>>? episodeCache, CancellationToken cancellationToken)
     {
         var config = Config;
-        var badges = GetBadges(item, config, episodeCache);
+        var badges = GetBadges(item, config, episodeCache, out var mediaInfoMissing);
         var state = LoadState(item.Id, item);
+
+        // Media info is briefly gone while Jellyfin scans a file again. Drawing now would drop the quality badges,
+        // or put the original back, so keep what is there; the regular check comes back once the info is in.
+        // ponytail: a file that never gets media info keeps its last badges, even when its rating changes.
+        if (mediaInfoMissing && state is not null && state.OutputHash.Length > 0 && state.OutputHash != state.OriginalHash)
+        {
+            return;
+        }
         var (lastOutputPath, lastOutputHash) = (state?.OutputPath, state?.OutputHash);
         var info = item.GetImageInfo(ImageType.Primary, 0);
 
@@ -520,9 +559,14 @@ public sealed class PosterProcessor : IDisposable
     }
 
     private List<Badge> GetBadges(BaseItem item, PluginConfiguration config, ConcurrentDictionary<Guid, List<Badge>>? episodeCache = null)
+        => GetBadges(item, config, episodeCache, out _);
+
+    // mediaInfoMissing: the item has media, but none of it has been scanned (no resolution anywhere).
+    private List<Badge> GetBadges(BaseItem item, PluginConfiguration config, ConcurrentDictionary<Guid, List<Badge>>? episodeCache, out bool mediaInfoMissing)
     {
         List<Badge> technical;
         IReadOnlyList<BaseItem> episodes = [];
+        var hasMedia = true;
         if (item is Series or Season)
         {
             episodes = _libraryManager.GetItemList(new InternalItemsQuery
@@ -535,16 +579,21 @@ public sealed class PosterProcessor : IDisposable
             technical = BadgeDetector.MostCommon(episodes
                 .Select(e => (IReadOnlyList<Badge>)(episodeCache is null ? Technical(e, config) : episodeCache.GetOrAdd(e.Id, _ => Technical(e, config))))
                 .ToList());
+            hasMedia = episodes.Count > 0;
         }
         else if (item is BoxSet boxSet)
         {
             // Like a series: the most common quality of the movies in it.
-            technical = BadgeDetector.MostCommon(boxSet.GetLinkedChildren().OfType<Movie>().Select(m => (IReadOnlyList<Badge>)Technical(m, config)).ToList());
+            var movies = boxSet.GetLinkedChildren().OfType<Movie>().ToList();
+            technical = BadgeDetector.MostCommon(movies.Select(m => (IReadOnlyList<Badge>)Technical(m, config)).ToList());
+            hasMedia = movies.Count > 0;
         }
         else
         {
             technical = item is Episode && episodeCache is not null ? episodeCache.GetOrAdd(item.Id, _ => Technical(item, config)) : Technical(item, config);
         }
+
+        mediaInfoMissing = hasMedia && !technical.Any(b => b.Kind == BadgeKind.Resolution);
 
         // Status and edition go first: they say the most at a glance.
         var lead = new List<Badge>();
