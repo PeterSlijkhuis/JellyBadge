@@ -70,6 +70,24 @@ public class JellyBadgeController : ControllerBase
     public ActionResult<IReadOnlyList<string>> GetActivity() => Ok(Activity.Read());
 
     /// <summary>
+    /// Empties the activity list.
+    /// </summary>
+    /// <returns>No content.</returns>
+    [HttpDelete("Activity")]
+    public ActionResult ClearActivity()
+    {
+        Activity.Clear();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// How many posters carry badges right now.
+    /// </summary>
+    /// <returns>The count.</returns>
+    [HttpGet("Badged")]
+    public ActionResult<int> GetBadged() => _processor.CountBadged();
+
+    /// <summary>
     /// Turns badging off and restores every original poster.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>

@@ -198,6 +198,10 @@
             #JellyBadgeConfigPage .jb-log-row.Warning .jb-log-msg { color: #e0a33a; }
             #JellyBadgeConfigPage .jb-log-row.Error .jb-log-msg { color: #e05a5a; }
             #JellyBadgeConfigPage .jb-log-empty { padding: 1em; opacity: 0.6; }
+            #JellyBadgeConfigPage .jb-log.problems .jb-log-row.Info { display: none; }
+            #JellyBadgeConfigPage .jb-btn[aria-pressed="true"] { border-color: currentColor; font-weight: 600; }
+            #JellyBadgeConfigPage .jb-excluded { display: flex; align-items: center; gap: 0.6em; padding: 0.35em 0; }
+            #JellyBadgeConfigPage .jb-excluded span { flex: 1; overflow-wrap: anywhere; }
             #JellyBadgeConfigPage .jb-danger { border-color: rgba(220, 70, 70, 0.45); }
             #JellyBadgeConfigPage .jb-danger-row { display: flex; gap: 1em; align-items: center; justify-content: space-between; flex-wrap: wrap; }
             #JellyBadgeConfigPage .jb-btn {
@@ -245,6 +249,10 @@
                                 Open <b>Dashboard &gt; Plugins &gt; TMDb</b>, tick <b>Create unaired (upcoming) episodes</b> and tick each TV library in the list below it.
                                 The TheTVDB plugin has a similar option. Without it, shows get NEW EPISODE, RETURNING and ENDED only.
                             </p>
+                            <div class="jb-search" id="jbNewRow" style="margin-top:0.7em;" hidden>
+                                <label for="jbNewDays" class="jb-hint" style="display:block;margin:0 0 0.4em;">NEW EPISODE stays up for</label>
+                                <select id="jbNewDays"><option value="3">3 days after airing</option><option value="7">7 days after airing</option><option value="14">14 days after airing</option></select>
+                            </div>
                             <button type="button" class="jb-tile" role="switch" id="jbPremium" data-key="PremiumOnly" aria-checked="false" style="margin-top:0.7em;width:100%;">
                                 <span class="jb-chip">★</span>
                                 <span class="jb-tile-text"><b>Only premium badges</b><small>Leaves out 720p, SD, stereo, mono, lossy audio (DD, DD+, DTS, AAC) and older codecs (H.264, VC-1, MPEG-2), so badges only appear when something stands out.</small></span>
@@ -312,8 +320,10 @@
                         <section class="jb-card">
                             <h2>Activity</h2>
                             <div class="jb-danger-row" style="margin-bottom:0.8em;">
-                                <p class="jb-hint" style="margin:0;flex:1 1 300px;">What JellyBadge did recently and why, newest first.</p>
+                                <p class="jb-hint" style="margin:0;flex:1 1 300px;">What JellyBadge did recently and why, newest first. <b id="jbBadged"></b></p>
+                                <button type="button" class="jb-btn" id="jbProblems" aria-pressed="false">Only problems</button>
                                 <button type="button" class="jb-btn" id="jbActivityRefresh">Refresh</button>
+                                <button type="button" class="jb-btn" id="jbActivityClear">Clear</button>
                             </div>
                             <div class="jb-log" id="jbActivity" aria-live="polite"><div class="jb-log-empty">Loading...</div></div>
                         </section>
@@ -339,6 +349,11 @@
                                 <span class="jb-caption" id="jbCaption">Nothing is saved while previewing.</span>
                                 <button type="button" class="jb-btn" id="jbCompare" style="padding:0.5em 0.9em;white-space:nowrap;" disabled>Hold to compare</button>
                             </div>
+                            <button type="button" class="jb-btn" id="jbExclude" style="margin-top:0.7em;width:100%;" disabled>Leave this poster alone</button>
+                            <div id="jbExcludedBox" hidden>
+                                <p class="jb-hint" style="margin:1em 0 0.4em;">Left alone, these keep their original poster:</p>
+                                <div id="jbExcluded"></div>
+                            </div>
                         </section>
                     </aside>
                 </div>
@@ -346,7 +361,6 @@
                 <img class="jb-mini" id="jbMini" alt="Live preview, tap to scroll to it" hidden />
                 <div class="jb-bar">
                     <span class="jb-dirty" id="jbDirty"></span>
-                    <button type="button" class="jb-btn" id="jbApply">Save and apply now</button>
                     <button type="button" class="jb-btn primary" id="jbSave">Save</button>
                 </div>
             </div>
@@ -408,6 +422,9 @@
                 }
 
                 function loadActivity() {
+                    ApiClient.getJSON(ApiClient.getUrl('JellyBadge/Badged')).then(function (count) {
+                        $('jbBadged').textContent = count.toLocaleString() + (count === 1 ? ' poster has badges.' : ' posters have badges.');
+                    }).catch(function () { $('jbBadged').textContent = ''; });
                     ApiClient.getJSON(ApiClient.getUrl('JellyBadge/Activity')).then(function (lines) {
                         $('jbActivity').innerHTML = lines.length ? lines.slice(0, 300).map(function (line) {
                             var parts = line.split('\t');
@@ -441,6 +458,9 @@
                     $('jbSeasonRating').hidden = !config.BadgeSeasons;
                     $('jbLangRow').hidden = !config.ShowLanguage;
                     $('jbStatusNote').hidden = !config.ShowStatus;
+                    $('jbNewRow').hidden = !config.ShowStatus;
+                    $('jbNewDays').value = String(config.NewEpisodeDays || 7);
+                    renderExcluded();
                     $('jbLang').value = (config.LanguageCodes || [])[0] || '';
 
                     $('jbPoster').innerHTML = positions.map(function (p) {
@@ -472,7 +492,35 @@
                     }).join('');
 
                     var dirty = JSON.stringify(config) !== saved;
-                    $('jbDirty').innerHTML = dirty ? '<span class="jb-dot"></span>Unsaved changes' : (config.Enabled ? 'All changes saved' : 'Badges are off. Switch them on at the top, then save.');
+                    $('jbDirty').innerHTML = dirty ? '<span class="jb-dot"></span>Unsaved changes' : (config.Enabled ? 'All changes saved. Posters update in the background.' : 'Badges are off. Switch them on at the top, then save.');
+                }
+
+                function isExcluded(id) { return (config.ExcludedItems || []).indexOf(id) !== -1; }
+
+                function renderExcluded() {
+                    var ids = config.ExcludedItems || [];
+                    $('jbExclude').disabled = !item;
+                    $('jbExclude').textContent = item && isExcluded(item.Id) ? 'Badge this poster again' : 'Leave this poster alone';
+                    $('jbExcludedBox').hidden = !ids.length;
+                    var key = ids.join(',');
+                    if ($('jbExcluded').getAttribute('data-ids') === key) { return; }
+                    $('jbExcluded').setAttribute('data-ids', key);
+                    if (!ids.length) { $('jbExcluded').innerHTML = ''; return; }
+                    ApiClient.getItems(ApiClient.getCurrentUserId(), { Ids: key }).then(function (result) {
+                        var names = {};
+                        result.Items.forEach(function (i) { names[i.Id] = i.Type === 'Episode' || i.Type === 'Season' ? i.SeriesName + ', ' + i.Name : i.Name; });
+                        $('jbExcluded').innerHTML = ids.map(function (id) {
+                            return '<div class="jb-excluded"><span>' + esc(names[id] || 'Removed item') + '</span>' +
+                                '<button type="button" class="jb-btn jb-unexclude" data-id="' + esc(id) + '" style="padding:0.3em 0.8em;">Badge again</button></div>';
+                        }).join('');
+                    });
+                }
+
+                function toggleExcluded(id) {
+                    config.ExcludedItems = isExcluded(id)
+                        ? config.ExcludedItems.filter(function (x) { return x !== id; })
+                        : (config.ExcludedItems || []).concat([id]);
+                    render();
                 }
 
                 function renderLibraries(folders) {
@@ -530,6 +578,7 @@
 
                 function selectItem(next) {
                     item = next;
+                    renderExcluded();
                     $('jbFrame').classList.toggle('wide', next.Type === 'Episode');
                     if (originalUrl) { URL.revokeObjectURL(originalUrl); originalUrl = null; }
                     $('jbResults').hidden = true;
@@ -593,20 +642,24 @@
                     }
                     if (el.classList.contains('jb-result')) { selectItem(results[+el.getAttribute('data-index')]); return; }
                     if (el.id === 'jbSave') { save().catch(function () { /* reported or cancelled */ }); return; }
-                    if (el.id === 'jbApply') {
-                        if (!config.Enabled) { Dashboard.alert('Switch badges on at the top first.'); return; }
-                        save().then(function () {
-                            return ApiClient.getScheduledTasks({ isHidden: false });
-                        }).then(function (tasks) {
-                            var task = tasks.filter(function (t) { return t.Key === 'JellyBadgeApply'; })[0];
-                            return ApiClient.startScheduledTask(task.Id);
-                        }).then(function () {
-                            Dashboard.alert('Badging has started. You can follow it under Scheduled Tasks.');
-                        }).catch(function () { /* save already reported */ });
-                        return;
-                    }
+                    if (el.id === 'jbExclude') { if (item) { toggleExcluded(item.Id); } return; }
+                    if (el.classList.contains('jb-unexclude')) { toggleExcluded(el.getAttribute('data-id')); return; }
                     if (el.id === 'jbActivityRefresh') {
                         loadActivity();
+                        return;
+                    }
+                    if (el.id === 'jbProblems') {
+                        var on = el.getAttribute('aria-pressed') !== 'true';
+                        el.setAttribute('aria-pressed', String(on));
+                        $('jbActivity').classList.toggle('problems', on);
+                        return;
+                    }
+                    if (el.id === 'jbActivityClear') {
+                        if (!window.confirm('Clear the activity list?')) { return; }
+                        fetch(ApiClient.getUrl('JellyBadge/Activity'), {
+                            method: 'DELETE',
+                            headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                        }).then(loadActivity);
                         return;
                     }
                     if (el.id === 'jbRestore') {
@@ -672,6 +725,10 @@
                 });
 
                 var cultures = [];
+                $('jbNewDays').addEventListener('change', function () {
+                    config.NewEpisodeDays = parseInt($('jbNewDays').value, 10);
+                    changed();
+                });
                 $('jbLang').addEventListener('change', function () {
                     var c = cultures.filter(function (x) { return x.TwoLetterISOLanguageName === $('jbLang').value; })[0];
                     config.LanguageCodes = c ? [c.TwoLetterISOLanguageName].concat(c.ThreeLetterISOLanguageNames || [c.ThreeLetterISOLanguageName]) : [];
@@ -688,11 +745,15 @@
                         }).join('');
                         config = results[0];
                         config.Libraries = config.Libraries || [];
+                        config.ExcludedItems = config.ExcludedItems || [];
                         saved = JSON.stringify(config);
                         render();
                         renderLibraries(results[1]);
                         if (results[2].Items.length) { selectItem(results[2].Items[0]); }
                         Dashboard.hideLoadingMsg();
+                    }).catch(function () {
+                        Dashboard.hideLoadingMsg();
+                        Dashboard.alert('The settings could not be loaded. Reload the page, or check the server log if it keeps happening.');
                     });
                 });
             })();

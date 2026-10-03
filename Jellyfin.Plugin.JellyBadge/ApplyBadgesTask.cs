@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
+using Jellyfin.Plugin.JellyBadge.Detection;
 using Jellyfin.Plugin.JellyBadge.Processing;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
@@ -63,6 +65,8 @@ public class ApplyBadgesTask : IScheduledTask
         });
 
         var done = 0;
+        var failed = 0;
+        var episodeCache = new ConcurrentDictionary<Guid, List<Badge>>();
         await Parallel.ForEachAsync(
             items,
             new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, config.MaxConcurrency), CancellationToken = cancellationToken },
@@ -70,17 +74,19 @@ public class ApplyBadgesTask : IScheduledTask
             {
                 try
                 {
-                    await _processor.ProcessAsync(item, ct).ConfigureAwait(false);
+                    await _processor.ProcessAsync(item, ct, episodeCache).ConfigureAwait(false);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
+                    Interlocked.Increment(ref failed);
                     Activity.Log(_logger, LogLevel.Error, ex, "Failed to badge {Item}", item.Name);
                 }
 
                 progress.Report(100.0 * Interlocked.Increment(ref done) / items.Count);
             }).ConfigureAwait(false);
 
-        Activity.Info(_logger, "Checked {Count} items", items.Count);
+        var forgotten = _processor.ForgetRemoved();
+        Activity.Info(_logger, "Checked {Count} items, {Failed} failed, {Removed} removed items cleaned up", items.Count, failed, forgotten);
     }
 
     /// <inheritdoc />

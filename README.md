@@ -51,7 +51,8 @@ JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos**, **★ 8.4
 - **Keeps up with changes.** When a metadata refresh, an upload or another tool replaces a poster, JellyBadge treats the new one as the original and badges it again.
 - **Seasons, episodes and collections too, if you like.** Each has its own switch.
 - **Live preview.** See exactly how a poster will look before anything is written.
-- **Activity log.** The settings page shows what JellyBadge did and why, so you can see what happened overnight.
+- **Activity log.** The settings page shows what JellyBadge did and why, how many posters have badges, and a filter for just the problems.
+- **Leave a poster alone.** Made a poster by hand? Click **Leave this poster alone** under the live preview and save, and it keeps its original.
 
 ### Badges
 
@@ -63,8 +64,8 @@ JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos**, **★ 8.4
 | Remux | `REMUX` | the file or folder name, off until you switch it on |
 | Audio format | `ATMOS` `DTS:X` `TRUEHD` `DTS-HD MA` `FLAC` `PCM` `DTS` `DD+` `DD` `AAC` | the audio codec and profile |
 | Audio channels | `7.1` `5.1` `2.1` `2.0` `MONO` and others | the audio channel layout |
-| Edition | `DIRECTOR'S CUT` `EXTENDED` `IMAX` and others | Radarr's `{edition-...}` tag or the file name, movies only, off until you switch it on |
-| Show status | `NEW EPISODE` `SEASON 3 SOON` `RETURNING` `ENDED` | an episode that aired in the last 7 days, a season starting in the next 7 days (needs unaired episodes, for example from the TMDb plugin), else the series status, off until you switch it on |
+| Edition | `DIRECTOR'S CUT` `EXTENDED` `IMAX` and others | Radarr's `{edition-...}` tag, or words after the year in the file or folder name (so "Uncut Gems" is not UNCUT), movies only, off until you switch it on |
+| Show status | `NEW EPISODE` `SEASON 3 SOON` `RETURNING` `ENDED` | an episode that aired in the last 3, 7 or 14 days (your choice, 7 by default), a season starting in the next 7 days (needs unaired episodes, for example from the TMDb plugin), else the series status, off until you switch it on |
 | Language | `NL` or `NL SUBS` | audio or subtitles in the language you pick, off until you switch it on |
 | Community rating | `★ 8.4` | the item's community rating |
 | Critic rating | `✓ 93%` | the item's critic rating |
@@ -117,11 +118,11 @@ Open **Dashboard > Plugins > JellyBadge**.
 2. **Choose the placement.** Click a spot on the little poster. To give badges their own spots, switch on **Choose a spot per badge** and pick a spot in each row.
 3. **Choose a style and size.** The live preview updates as you go. Search any movie or series to try it on, and hold **Hold to compare** to see the original.
 4. **Choose what to badge.** Under **Libraries**, pick libraries and switch on season posters, episode thumbnails or collection posters if you want them.
-5. **Switch it on.** Flip the switch at the top to **Active**, then click **Save and apply now**.
+5. **Switch it on.** Flip the switch at the top to **Active**, then click **Save**. Posters update in the background, and every later save redraws only what changed.
 
 JellyBadge is off after installing, so nothing changes until you switch it on. Progress of the first run shows under **Dashboard > Scheduled Tasks > Apply poster badges**.
 
-The **Activity** section on the same page lists what JellyBadge did recently and why: posters it badged, posters that were replaced, restores and errors.
+The **Activity** section on the same page lists what JellyBadge did recently and why: posters it badged, posters that were replaced, restores and errors. **Only problems** hides everything but warnings and errors, and **Clear** empties the list.
 
 ## What it can and cannot do
 
@@ -201,7 +202,7 @@ JellyBadge reads the media info Jellyfin collected for the file. Open the item, 
 <details>
 <summary><b>I changed a poster myself. Will JellyBadge overwrite it?</b></summary>
 
-It treats your new poster as the original, backs it up and adds badges to it. If you do not want badges on it, use **Restore originals** or limit JellyBadge to certain libraries.
+It treats your new poster as the original, backs it up and adds badges to it. If you do not want badges on it, pick it in the live preview and click **Leave this poster alone**, then **Save**. It gets its original back and keeps it until you click **Badge again**.
 </details>
 
 <details>

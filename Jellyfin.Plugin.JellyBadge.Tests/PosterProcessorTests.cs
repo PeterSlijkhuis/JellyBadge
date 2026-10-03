@@ -179,6 +179,65 @@ public sealed class PosterProcessorTests : IDisposable
     }
 
     [Fact]
+    public async Task DamagedStateIsRebuiltFromBackupWithoutBadgingTwice()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        await File.WriteAllTextAsync(Directory.GetFiles(Path.Combine(DataDir, "state")).Single(), "{\"OriginalHa", TestContext.Current.CancellationToken);
+        _item.CommunityRating = 9.1f;
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(2, _saves);
+        Assert.Equal(Bytes(_mediaPoster), Bytes(Directory.GetFiles(Path.Combine(DataDir, "originals")).Single()));
+    }
+
+    [Fact]
+    public async Task RestoreAllGetsPastADamagedStateFile()
+    {
+        var other = Guid.NewGuid();
+        Directory.CreateDirectory(Path.Combine(DataDir, "state"));
+        await File.WriteAllTextAsync(Path.Combine(DataDir, "state", other.ToString("N") + ".json"), string.Empty, TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(DataDir, "state", "not-an-id.json"), "{}", TestContext.Current.CancellationToken);
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(1, await _processor.RestoreAllAsync(CancellationToken.None));
+        Assert.Equal(_mediaPoster, CurrentPath());
+    }
+
+    [Fact]
+    public async Task ForgetsRemovedItems()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        _library.Setup(l => l.GetItemById(_item.Id)).Returns((BaseItem?)null);
+
+        Assert.Equal(1, _processor.ForgetRemoved());
+        Assert.Empty(Directory.GetFiles(Path.Combine(DataDir, "originals")));
+        Assert.Empty(Directory.GetFiles(Path.Combine(DataDir, "state")));
+    }
+
+    [Fact]
+    public async Task ExcludedItemGetsItsOriginalBack()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        Plugin.Instance!.Configuration.ExcludedItems = [_item.Id.ToString("N")];
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(_mediaPoster, CurrentPath());
+        Assert.Empty(Directory.GetFiles(Path.Combine(DataDir, "state")));
+    }
+
+    [Fact]
+    public async Task SeasonRatedZeroFallsBackToTheSeries()
+    {
+        Plugin.Instance!.Configuration.BadgeSeasons = true;
+        var season = new Season { Id = Guid.NewGuid(), Name = "Season 1", CommunityRating = 0, SeriesId = _item.Id };
+        SetPoster(season, WritePoster(Path.Combine(_root, "media", "season.jpg"), SKColors.SteelBlue));
+
+        await _processor.ProcessAsync(season, CancellationToken.None);
+
+        Assert.Equal("Badged Season 1: 8.4", Activity.Read()[0].Split('\t')[2]);
+    }
+
+    [Fact]
     public async Task DoesNothingWhenOff()
     {
         Plugin.Instance!.Configuration.Enabled = false;
