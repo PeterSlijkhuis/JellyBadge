@@ -209,18 +209,24 @@ public static partial class BadgeDetector
     }
 
     /// <summary>
-    /// The status of a series: an episode that aired lately, else returning or ended.
+    /// The status of a series: an episode that aired lately, a season that starts soon, else returning or ended.
     /// </summary>
     /// <param name="status">The series status.</param>
     /// <param name="lastAired">When the newest episode in the library aired.</param>
+    /// <param name="upcomingSeason">The season whose first episode airs within the coming days, if any.</param>
     /// <param name="now">The current time.</param>
     /// <param name="newDays">How many days an episode counts as new.</param>
     /// <returns>The status badge, or null.</returns>
-    public static Badge? Status(SeriesStatus? status, DateTime? lastAired, DateTime now, int newDays)
+    public static Badge? Status(SeriesStatus? status, DateTime? lastAired, int? upcomingSeason, DateTime now, int newDays)
     {
         if (lastAired is not null && lastAired.Value <= now && now - lastAired.Value < TimeSpan.FromDays(newDays))
         {
             return new Badge(BadgeKind.Status, "NEW EPISODE");
+        }
+
+        if (upcomingSeason is > 0)
+        {
+            return new Badge(BadgeKind.Status, string.Create(CultureInfo.InvariantCulture, $"SEASON {upcomingSeason} SOON"));
         }
 
         return status switch

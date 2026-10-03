@@ -446,7 +446,7 @@ public sealed class PosterProcessor : IDisposable
         // Status and edition go first: they say the most at a glance.
         var lead = new List<Badge>();
         if (item is Series series
-            && BadgeDetector.Status(series.Status, LastAired(episodes), DateTime.UtcNow, NewEpisodeDays) is { } status)
+            && BadgeDetector.Status(series.Status, LastAired(episodes), config.ShowStatus ? UpcomingSeason(series) : null, DateTime.UtcNow, NewEpisodeDays) is { } status)
         {
             lead.Add(status);
         }
@@ -489,6 +489,25 @@ public sealed class PosterProcessor : IDisposable
                 _ => config.ShowCriticRating
             } && (!config.PremiumOnly || BadgeDetector.IsPremium(b)))
             .ToList();
+    }
+
+    // A season whose first episode airs in the coming days. Unaired episodes only exist when a metadata
+    // plugin adds them (TMDb's "unaired episodes" option, for example).
+    private int? UpcomingSeason(Series series)
+    {
+        var now = DateTime.UtcNow;
+        return _libraryManager.GetItemList(new InternalItemsQuery
+            {
+                AncestorIds = [series.Id],
+                IncludeItemTypes = [BaseItemKind.Episode],
+                Recursive = true,
+                MinPremiereDate = now,
+                MaxPremiereDate = now.AddDays(NewEpisodeDays)
+            })
+            .OfType<Episode>()
+            .Where(e => e.IndexNumber == 1 && e.ParentIndexNumber > 0)
+            .Select(e => e.ParentIndexNumber)
+            .Min();
     }
 
     // The newest air date that has passed, so announced future episodes do not count.

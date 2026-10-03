@@ -83,7 +83,16 @@ public class BadgeDetectorTests
     public void SeriesStatusBadge(SeriesStatus? status, int daysSinceAdded, string? expected)
     {
         var now = new System.DateTime(2026, 10, 3, 0, 0, 0, System.DateTimeKind.Utc);
-        Assert.Equal(expected, BadgeDetector.Status(status, now.AddDays(-daysSinceAdded), now, 7)?.Text);
+        Assert.Equal(expected, BadgeDetector.Status(status, now.AddDays(-daysSinceAdded), null, now, 7)?.Text);
+    }
+
+    [Fact]
+    public void UpcomingSeasonComesAfterNewEpisode()
+    {
+        var now = new System.DateTime(2026, 10, 3, 0, 0, 0, System.DateTimeKind.Utc);
+
+        Assert.Equal("SEASON 3 SOON", BadgeDetector.Status(SeriesStatus.Continuing, now.AddDays(-60), 3, now, 7)?.Text);
+        Assert.Equal("NEW EPISODE", BadgeDetector.Status(SeriesStatus.Continuing, now.AddDays(-1), 3, now, 7)?.Text);
     }
 
     [Fact]
