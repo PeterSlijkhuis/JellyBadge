@@ -32,6 +32,9 @@ public sealed class PosterProcessor : IDisposable
     // Bump when the drawing changes, so every poster gets re-rendered once.
     private const int RenderVersion = 2;
 
+    // How long a newly added episode puts NEW EPISODE on its series.
+    private const int NewEpisodeDays = 7;
+
     private readonly ILibraryManager _libraryManager;
     private readonly IProviderManager _providerManager;
     private readonly IServerApplicationPaths _paths;
@@ -85,14 +88,14 @@ public sealed class PosterProcessor : IDisposable
     }
 
     /// <summary>
-    /// Whether this item is a movie, series, season or (when switched on) episode or collection in an included library.
+    /// Whether this item is a movie, series or (when switched on) season, episode or collection in an included library.
     /// </summary>
     /// <param name="item">The item.</param>
     /// <returns>True if it should be badged.</returns>
     public bool IsCandidate(BaseItem item)
     {
         if (item is not (Movie or Series or Season or Episode or BoxSet) || item.IsVirtualItem
-            || (item is Episode && !Config.BadgeEpisodes) || (item is BoxSet && !Config.BadgeCollections))
+            || (item is Episode && !Config.BadgeEpisodes) || (item is Season && !Config.BadgeSeasons) || (item is BoxSet && !Config.BadgeCollections))
         {
             return false;
         }
@@ -336,7 +339,14 @@ public sealed class PosterProcessor : IDisposable
         SaveState(item.Id, state);
         await SavePrimaryAsync(item, output, BadgeRenderer.MimeType(output), cancellationToken).ConfigureAwait(false);
         MarkDone(item, state);
-        Activity.Log(_logger, LogLevel.Debug, null, "Badged {Item}: {Badges}", item.Name, string.Join(", ", badges.Select(b => b.Text)));
+        if (badges.Count == 0)
+        {
+            Activity.Log(_logger, LogLevel.Debug, null, "{Item} has no badges to show, original poster put back", item.Name);
+        }
+        else
+        {
+            Activity.Log(_logger, LogLevel.Debug, null, "Badged {Item}: {Badges}", item.Name, string.Join(", ", badges.Select(b => b.Text)));
+        }
     }
 
     private static string InputHash(PosterState state, List<Badge> badges, PluginConfiguration config)
@@ -411,31 +421,59 @@ public sealed class PosterProcessor : IDisposable
     private List<Badge> GetBadges(BaseItem item, PluginConfiguration config)
     {
         List<Badge> technical;
+        IReadOnlyList<BaseItem> episodes = [];
         if (item is Series or Season)
         {
-            var episodes = _libraryManager.GetItemList(new InternalItemsQuery
+            episodes = _libraryManager.GetItemList(new InternalItemsQuery
             {
                 AncestorIds = [item.Id],
                 IncludeItemTypes = [BaseItemKind.Episode],
                 Recursive = true,
                 IsVirtualItem = false
             });
-            technical = BadgeDetector.MostCommon(episodes.Select(e => (IReadOnlyList<Badge>)BestVersion(e)).ToList());
+            technical = BadgeDetector.MostCommon(episodes.Select(e => (IReadOnlyList<Badge>)Technical(e, config)).ToList());
         }
         else if (item is BoxSet boxSet)
         {
             // Like a series: the most common quality of the movies in it.
-            technical = BadgeDetector.MostCommon(boxSet.GetLinkedChildren().OfType<Movie>().Select(m => (IReadOnlyList<Badge>)BestVersion(m)).ToList());
+            technical = BadgeDetector.MostCommon(boxSet.GetLinkedChildren().OfType<Movie>().Select(m => (IReadOnlyList<Badge>)Technical(m, config)).ToList());
         }
         else
         {
-            technical = BestVersion(item);
+            technical = Technical(item, config);
         }
 
-        // Seasons rarely have their own rating: show the series rating instead.
-        var rated = item is Season { CommunityRating: null, CriticRating: null } season ? season.Series ?? item : item;
-        return technical
-            .Concat(BadgeDetector.Ratings(rated.CommunityRating, rated.CriticRating))
+        // Status and edition go first: they say the most at a glance.
+        var lead = new List<Badge>();
+        if (item is Series series
+            && BadgeDetector.Status(series.Status, episodes.Count == 0 ? null : episodes.Max(e => e.DateCreated), DateTime.UtcNow, NewEpisodeDays) is { } status)
+        {
+            lead.Add(status);
+        }
+
+        if (item is Movie && BadgeDetector.Edition(item.Path) is { } edition)
+        {
+            lead.Add(edition);
+        }
+
+        // Seasons rarely have their own rating: use the average of their episodes when chosen, otherwise the series rating.
+        var (community, critic) = (item.CommunityRating, item.CriticRating);
+        if (item is Season season && community is null && critic is null)
+        {
+            if (config.SeasonRatingFromEpisodes)
+            {
+                (community, critic) = (Average(episodes.Select(e => e.CommunityRating)), Average(episodes.Select(e => e.CriticRating)));
+            }
+
+            if (community is null && critic is null)
+            {
+                (community, critic) = (season.Series?.CommunityRating, season.Series?.CriticRating);
+            }
+        }
+
+        return lead
+            .Concat(technical)
+            .Concat(BadgeDetector.Ratings(community, critic))
             .Where(b => b.Kind switch
             {
                 BadgeKind.Resolution => config.ShowResolution,
@@ -445,13 +483,32 @@ public sealed class PosterProcessor : IDisposable
                 BadgeKind.VideoCodec => config.ShowVideoCodec,
                 BadgeKind.Remux => config.ShowRemux,
                 BadgeKind.CommunityRating => config.ShowCommunityRating,
+                BadgeKind.Edition => config.ShowEdition,
+                BadgeKind.Status => config.ShowStatus,
+                BadgeKind.Language => config.ShowLanguage,
                 _ => config.ShowCriticRating
-            })
+            } && (!config.PremiumOnly || BadgeDetector.IsPremium(b)))
             .ToList();
     }
 
-    private static List<Badge> BestVersion(BaseItem item)
-        => BadgeDetector.BestVersion(item.GetMediaSources(false).Select(s => ((IReadOnlyList<MediaStream>)s.MediaStreams, (string?)s.Path)));
+    private static float? Average(IEnumerable<float?> values)
+    {
+        var rated = values.OfType<float>().ToList();
+        return rated.Count == 0 ? null : rated.Average();
+    }
+
+    // Quality of the best version, plus the language badge from all versions.
+    private static List<Badge> Technical(BaseItem item, PluginConfiguration config)
+    {
+        var sources = item.GetMediaSources(false);
+        var badges = BadgeDetector.BestVersion(sources.Select(s => ((IReadOnlyList<MediaStream>)s.MediaStreams, (string?)s.Path)));
+        if (config.ShowLanguage && BadgeDetector.Language(sources.SelectMany(s => s.MediaStreams), config.LanguageCodes) is { } language)
+        {
+            badges.Add(language);
+        }
+
+        return badges;
+    }
 
     private static (byte[] Bytes, string Path)? ReadPrimary(BaseItem item)
     {

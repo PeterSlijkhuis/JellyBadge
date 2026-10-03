@@ -55,14 +55,17 @@ JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos** and **★ 
 |---|---|---|
 | Resolution | `4K` `1080p` `720p` `SD` | the video stream size |
 | Dynamic range | `DOLBY VISION` `HDR10+` `HDR10` `HLG` | the video range type |
-| Video codec | `AV1` `HEVC` `H.264` | the video codec, off until you switch it on |
+| Video codec | `AV1` `HEVC` `VP9` `H.264` `VC-1` `MPEG-2` | the video codec, off until you switch it on |
 | Remux | `REMUX` | the file or folder name, off until you switch it on |
-| Audio format | `ATMOS` `DTS:X` `TRUEHD` `DTS-HD MA` | the audio codec and profile |
-| Audio channels | `7.1` `5.1` | the audio channel count |
+| Audio format | `ATMOS` `DTS:X` `TRUEHD` `DTS-HD MA` `FLAC` `PCM` `DTS` `DD+` `DD` `AAC` | the audio codec and profile |
+| Audio channels | `7.1` `5.1` `2.1` `2.0` `MONO` and others | the audio channel layout |
+| Edition | `DIRECTOR'S CUT` `EXTENDED` `IMAX` and others | Radarr's `{edition-...}` tag or the file name, movies only, off until you switch it on |
+| Show status | `NEW EPISODE` `RETURNING` `ENDED` | an episode added in the last 7 days, else the series status, off until you switch it on |
+| Language | `NL` or `NL SUBS` | audio or subtitles in the language you pick, off until you switch it on |
 | Community rating | `★ 8.4` | the item's community rating |
 | Critic rating | `✓ 93%` | the item's critic rating |
 
-Each group can be switched on or off. A badge only appears when the item actually has it.
+Each group can be switched on or off. A badge only appears when the item actually has it. Switch on **Only premium badges** to leave out everyday quality (`720p`, `SD`, stereo, mono, lossy audio like `DD+` and `AAC`, and older codecs like `H.264`), so badges only appear when something stands out.
 
 ### Styles and placement
 
@@ -119,7 +122,8 @@ The **Activity** section on the same page lists what JellyBadge did recently and
 
 **It can**
 
-- Badge movie, series and season posters in the libraries you choose. Season posters matter because home screen rows often show them for new episodes.
+- Badge movie and series posters in the libraries you choose.
+- Badge season posters with the most common quality of their episodes, when you switch that on under **Libraries**. The rating is the series rating, or the average of the episode ratings if you choose that. Home screen rows often show the season poster for a new episode.
 - Use the best version of a movie that has several files.
 - Show the most common quality of a series or season, based on its episodes.
 - Badge episode thumbnails with the episode's own quality and rating, when you switch that on under **Libraries**. Switch it off again and the next run puts the original thumbnails back.

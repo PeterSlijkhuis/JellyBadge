@@ -18,7 +18,7 @@ public class BadgeDetectorTests
     [InlineData("fhd-hdr10plus-dtsx", "1080p,HDR10+,HEVC,DTS:X,7.1")]
     [InlineData("scope-sdr-dtshdma", "1080p,H.264,DTS-HD MA,5.1")]
     [InlineData("hd-hlg-eac3-atmos", "720p,HLG,HEVC,ATMOS,5.1")]
-    [InlineData("sd-stereo", "SD")]
+    [InlineData("sd-stereo", "SD,MPEG-2,AAC,2.0")]
     [InlineData("dolby-vision-invalid", "4K,HDR10,HEVC,TRUEHD,7.1")]
     public void DetectsTechnicalBadges(string fixture, string expected)
     {
@@ -60,7 +60,80 @@ public class BadgeDetectorTests
     [Fact]
     public void DetectsAv1()
     {
-        Assert.Equal("1080p,AV1", Texts(BadgeDetector.BestVersion([Load("fhd-av1-stereo")])));
+        Assert.Equal("1080p,AV1,OPUS,2.0", Texts(BadgeDetector.BestVersion([Load("fhd-av1-stereo")])));
+    }
+
+    [Theory]
+    [InlineData("/movies/Blade Runner (1982) {edition-Final Cut}/Blade Runner (1982) {edition-Final Cut}.mkv", "FINAL CUT")]
+    [InlineData("/movies/Aliens (1986)/Aliens.1986.Directors.Cut.2160p.mkv", "DIRECTOR'S CUT")]
+    [InlineData("/movies/Dune (2021)/Dune.2021.IMAX.1080p.mkv", "IMAX")]
+    [InlineData("/movies/The Hobbit Extended/movie.mkv", "EXTENDED")]
+    [InlineData("/movies/Maximum Overdrive (1986)/Maximum Overdrive.mkv", null)]
+    public void FindsEdition(string path, string? expected)
+    {
+        Assert.Equal(expected, BadgeDetector.Edition(path)?.Text);
+    }
+
+    [Theory]
+    [InlineData(SeriesStatus.Ended, 2, "NEW EPISODE")]
+    [InlineData(SeriesStatus.Continuing, 30, "RETURNING")]
+    [InlineData(SeriesStatus.Ended, 30, "ENDED")]
+    [InlineData(null, 30, null)]
+    public void SeriesStatusBadge(SeriesStatus? status, int daysSinceAdded, string? expected)
+    {
+        var now = new System.DateTime(2026, 10, 3, 0, 0, 0, System.DateTimeKind.Utc);
+        Assert.Equal(expected, BadgeDetector.Status(status, now.AddDays(-daysSinceAdded), now, 7)?.Text);
+    }
+
+    [Fact]
+    public void LanguageBadgePrefersAudioOverSubtitles()
+    {
+        string[] dutch = ["nl", "dut", "nld"];
+        var subs = new MediaStream { Type = MediaStreamType.Subtitle, Language = "dut" };
+        var audio = new MediaStream { Type = MediaStreamType.Audio, Language = "nld" };
+        var english = new MediaStream { Type = MediaStreamType.Audio, Language = "eng" };
+
+        Assert.Equal("NL SUBS", BadgeDetector.Language([english, subs], dutch)?.Text);
+        Assert.Equal("NL", BadgeDetector.Language([english, subs, audio], dutch)?.Text);
+        Assert.Null(BadgeDetector.Language([english], dutch));
+        Assert.Null(BadgeDetector.Language([subs], []));
+    }
+
+    [Theory]
+    [InlineData("eac3", null, "DD+")]
+    [InlineData("ac3", null, "DD")]
+    [InlineData("dts", "DTS-HD HRA", "DTS")]
+    [InlineData("dts", "DTS-HD MA", "DTS-HD MA")]
+    [InlineData("flac", null, "FLAC")]
+    [InlineData("pcm_s24le", null, "PCM")]
+    [InlineData("vorbis", null, "")]
+    public void NamesAudioFormats(string codec, string? profile, string expected)
+    {
+        var audio = new MediaStream { Type = MediaStreamType.Audio, Codec = codec, Profile = profile };
+        Assert.Equal(expected, Texts(BadgeDetector.BestVersion([new List<MediaStream> { audio }])));
+    }
+
+    [Theory]
+    [InlineData(3, null, "2.1")]
+    [InlineData(3, "2.1", "2.1")]
+    [InlineData(6, "5.1(side)", "5.1")]
+    [InlineData(5, "5.0", "5.0")]
+    [InlineData(2, "stereo", "2.0")]
+    [InlineData(1, "mono", "MONO")]
+    public void ReadsChannelLayout(int channels, string? layout, string expected)
+    {
+        var audio = new MediaStream { Type = MediaStreamType.Audio, Channels = channels, ChannelLayout = layout };
+        Assert.Equal(expected, Texts(BadgeDetector.BestVersion([new List<MediaStream> { audio }])));
+    }
+
+    [Theory]
+    [InlineData("uhd-dolby-vision-atmos", "4K,DOLBY VISION,HEVC,ATMOS,7.1")]
+    [InlineData("scope-sdr-dtshdma", "1080p,DTS-HD MA,5.1")]
+    [InlineData("hd-hlg-eac3-atmos", "HLG,HEVC,ATMOS,5.1")]
+    [InlineData("sd-stereo", "")]
+    public void PremiumLeavesOutEverydayQuality(string fixture, string expected)
+    {
+        Assert.Equal(expected, Texts(BadgeDetector.BestVersion([Load(fixture)]).Where(BadgeDetector.IsPremium).ToList()));
     }
 
     [Fact]

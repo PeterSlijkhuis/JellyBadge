@@ -147,6 +147,8 @@
             @keyframes jb-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
             #JellyBadgeConfigPage .jb-empty { padding: 1.5em; opacity: 0.7; }
             #JellyBadgeConfigPage .jb-search { position: relative; }
+            #JellyBadgeConfigPage .jb-search select { width: 100%; padding: 0.7em 0.9em; border-radius: 10px; font: inherit; border: 1px solid var(--jb-line); background: var(--jb-card); color: inherit; }
+            #JellyBadgeConfigPage .jb-search select option { color: #000; }
             #JellyBadgeConfigPage .jb-search input {
                 width: 100%; box-sizing: border-box; padding: 0.7em 0.9em; border-radius: 10px; font: inherit;
                 border: 1px solid var(--jb-line); background: rgba(128, 128, 128, 0.1); color: inherit;
@@ -213,6 +215,15 @@
                             <h2>Badges</h2>
                             <p class="jb-hint">Pick what to show. Each badge only appears when the item actually has it.</p>
                             <div class="jb-tiles" id="jbTiles" role="group" aria-label="Badges"></div>
+                            <div class="jb-search" id="jbLangRow" style="margin-top:0.7em;" hidden>
+                                <label for="jbLang" class="jb-hint" style="display:block;margin:0 0 0.4em;">Language for the language badge</label>
+                                <select id="jbLang"></select>
+                            </div>
+                            <button type="button" class="jb-tile" role="switch" id="jbPremium" data-key="PremiumOnly" aria-checked="false" style="margin-top:0.7em;width:100%;">
+                                <span class="jb-chip">★</span>
+                                <span class="jb-tile-text"><b>Only premium badges</b><small>Leaves out 720p, SD, stereo, mono, lossy audio (DD, DD+, DTS, AAC) and older codecs (H.264, VC-1, MPEG-2), so badges only appear when something stands out.</small></span>
+                                <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
+                            </button>
                         </section>
 
                         <section class="jb-card">
@@ -249,6 +260,15 @@
                             <button type="button" class="jb-tile" role="switch" id="jbEpisodes" data-key="BadgeEpisodes" aria-checked="false" style="margin-top:1em;width:100%;">
                                 <span class="jb-chip">S1 E4</span>
                                 <span class="jb-tile-text"><b>Episode thumbnails</b><small>Badge each episode with its own quality and rating.</small></span>
+                                <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
+                            </button>
+                            <button type="button" class="jb-tile" role="switch" id="jbSeasons" data-key="BadgeSeasons" aria-checked="false" style="margin-top:0.7em;width:100%;">
+                                <span class="jb-chip">SEASON</span>
+                                <span class="jb-tile-text"><b>Season posters</b><small>Most common quality of the episodes. Shown on home screens for new episodes.</small></span>
+                                <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
+                            </button>
+                            <button type="button" class="jb-tile" role="switch" id="jbSeasonRating" data-key="SeasonRatingFromEpisodes" aria-checked="false" style="margin:0.5em 0 0 1.5em;width:calc(100% - 1.5em);">
+                                <span class="jb-tile-text"><b>Season rating from its episodes</b><small>Average of the episode ratings. Off shows the series rating.</small></span>
                                 <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
                             </button>
                             <button type="button" class="jb-tile" role="switch" id="jbCollections" data-key="BadgeCollections" aria-checked="false" style="margin-top:0.7em;width:100%;">
@@ -308,10 +328,13 @@
                 var badges = [
                     ['ShowResolution', 'Resolution', '4K, 1080p, 720p, SD', '4K'],
                     ['ShowDynamicRange', 'Dynamic range', 'Dolby Vision, HDR10+, HDR10, HLG', 'HDR10+'],
-                    ['ShowVideoCodec', 'Video codec', 'AV1, HEVC, H.264', 'HEVC'],
+                    ['ShowVideoCodec', 'Video codec', 'AV1, HEVC, VP9, H.264, VC-1, MPEG-2', 'HEVC'],
                     ['ShowRemux', 'Remux', 'From the file or folder name', 'REMUX'],
-                    ['ShowAudioFormat', 'Audio format', 'Atmos, DTS:X, TrueHD, DTS-HD MA', 'ATMOS'],
-                    ['ShowAudioChannels', 'Audio channels', '7.1, 5.1', '7.1'],
+                    ['ShowAudioFormat', 'Audio format', 'Atmos, DTS:X, TrueHD, DTS-HD MA, FLAC, DTS, DD+, DD, AAC', 'ATMOS'],
+                    ['ShowAudioChannels', 'Audio channels', '7.1, 5.1, 2.1, 2.0, mono', '7.1'],
+                    ['ShowEdition', 'Edition', "Director's Cut, Extended, IMAX, from the file name", 'EXTENDED'],
+                    ['ShowStatus', 'Show status', 'New episode, returning, ended', 'NEW EPISODE'],
+                    ['ShowLanguage', 'Language', 'Audio or subtitles in your language', 'NL SUBS'],
                     ['ShowCommunityRating', 'Community rating', 'Score out of 10', '★ 7.8'],
                     ['ShowCriticRating', 'Critic rating', 'Percentage', '✓ 92%']
                 ];
@@ -381,9 +404,12 @@
                             '<span class="jb-switch" aria-hidden="true" aria-checked="' + !!config[b[0]] + '"></span></button>';
                     }).join('');
 
-                    [['jbEpisodes', 'BadgeEpisodes'], ['jbCollections', 'BadgeCollections']].forEach(function (t) {
+                    [['jbPremium', 'PremiumOnly'], ['jbEpisodes', 'BadgeEpisodes'], ['jbSeasons', 'BadgeSeasons'], ['jbSeasonRating', 'SeasonRatingFromEpisodes'], ['jbCollections', 'BadgeCollections']].forEach(function (t) {
                         [$(t[0]), $(t[0]).querySelector('.jb-switch')].forEach(function (el) { el.setAttribute('aria-checked', String(!!config[t[1]])); });
                     });
+                    $('jbSeasonRating').hidden = !config.BadgeSeasons;
+                    $('jbLangRow').hidden = !config.ShowLanguage;
+                    $('jbLang').value = (config.LanguageCodes || [])[0] || '';
 
                     $('jbPoster').innerHTML = positions.map(function (p) {
                         return choice('jb-spot ' + p[1], p[0], config.Position, '', p[2]);
@@ -468,7 +494,7 @@
                 function search(term) {
                     return ApiClient.getItems(ApiClient.getCurrentUserId(), {
                         SearchTerm: term || undefined,
-                        IncludeItemTypes: ['Movie', 'Series'].concat(config && term && config.BadgeEpisodes ? ['Episode'] : [], config && term && config.BadgeCollections ? ['BoxSet'] : []).join(','),
+                        IncludeItemTypes: ['Movie', 'Series'].concat(config && term && config.BadgeEpisodes ? ['Episode'] : [], config && term && config.BadgeSeasons ? ['Season'] : [], config && term && config.BadgeCollections ? ['BoxSet'] : []).join(','),
                         Recursive: true,
                         ImageTypes: 'Primary',
                         SortBy: term ? 'SortName' : 'DateCreated',
@@ -579,7 +605,7 @@
                                 var thumb = ApiClient.getScaledImageUrl(i.Id, { type: 'Primary', maxHeight: 102, tag: i.ImageTags && i.ImageTags.Primary });
                                 return '<button type="button" class="jb-result" data-index="' + index + '">' +
                                     '<img alt="" loading="lazy" src="' + thumb + '" /><span>' + esc(i.Name) +
-                                    '<small>' + (i.Type === 'Episode' ? esc(i.SeriesName) + ' · S' + (i.ParentIndexNumber || 0) + ' E' + (i.IndexNumber || 0) : (i.ProductionYear || '') + (i.Type === 'Series' ? ' · Series' : i.Type === 'BoxSet' ? ' · Collection' : '')) + '</small></span></button>';
+                                    '<small>' + (i.Type === 'Episode' ? esc(i.SeriesName) + ' · S' + (i.ParentIndexNumber || 0) + ' E' + (i.IndexNumber || 0) : i.Type === 'Season' ? esc(i.SeriesName) : (i.ProductionYear || '') + (i.Type === 'Series' ? ' · Series' : i.Type === 'BoxSet' ? ' · Collection' : '')) + '</small></span></button>';
                             }).join('') || '<div class="jb-empty">Nothing found.</div>';
                             $('jbResults').hidden = false;
                         });
@@ -592,10 +618,21 @@
                     if (!e.target.closest || !e.target.closest('#JellyBadgeConfigPage .jb-search')) { var r = $('jbResults'); if (r) { r.hidden = true; } }
                 });
 
+                var cultures = [];
+                $('jbLang').addEventListener('change', function () {
+                    var c = cultures.filter(function (x) { return x.TwoLetterISOLanguageName === $('jbLang').value; })[0];
+                    config.LanguageCodes = c ? [c.TwoLetterISOLanguageName].concat(c.ThreeLetterISOLanguageNames || [c.ThreeLetterISOLanguageName]) : [];
+                    changed();
+                });
+
                 page.addEventListener('pageshow', function () {
                     loadActivity();
                     Dashboard.showLoadingMsg();
-                    Promise.all([ApiClient.getPluginConfiguration(pluginId), ApiClient.getVirtualFolders(), search('')]).then(function (results) {
+                    Promise.all([ApiClient.getPluginConfiguration(pluginId), ApiClient.getVirtualFolders(), search(''), ApiClient.getCultures()]).then(function (results) {
+                        cultures = results[3].filter(function (c) { return c.TwoLetterISOLanguageName; });
+                        $('jbLang').innerHTML = '<option value="">Choose a language</option>' + cultures.map(function (c) {
+                            return '<option value="' + esc(c.TwoLetterISOLanguageName) + '">' + esc(c.DisplayName) + '</option>';
+                        }).join('');
                         config = results[0];
                         config.Libraries = config.Libraries || [];
                         saved = JSON.stringify(config);

@@ -38,7 +38,16 @@ public enum BadgeKind
     VideoCodec,
 
     /// <summary>Remux, from the file name. Drawn after the codec.</summary>
-    Remux
+    Remux,
+
+    /// <summary>Director's Cut, Extended, IMAX and so on, from the file name.</summary>
+    Edition,
+
+    /// <summary>New episode, returning, ended. Series only.</summary>
+    Status,
+
+    /// <summary>Audio or subtitles in a chosen language.</summary>
+    Language
 }
 
 /// <summary>
@@ -54,7 +63,21 @@ public sealed record Badge(BadgeKind Kind, string Text);
 public static partial class BadgeDetector
 {
     // The order technical badges are drawn in.
-    private static readonly BadgeKind[] TechnicalKinds = [BadgeKind.Resolution, BadgeKind.DynamicRange, BadgeKind.VideoCodec, BadgeKind.Remux, BadgeKind.AudioFormat, BadgeKind.AudioChannels];
+    private static readonly BadgeKind[] TechnicalKinds = [BadgeKind.Resolution, BadgeKind.DynamicRange, BadgeKind.VideoCodec, BadgeKind.Remux, BadgeKind.AudioFormat, BadgeKind.AudioChannels, BadgeKind.Language];
+
+    // Known editions in release names, checked in this order. Separators are spaces by then.
+    private static readonly (Regex Pattern, string Text)[] Editions =
+    [
+        (new(@"\bdirector'?s cut\b", RegexOptions.IgnoreCase), "DIRECTOR'S CUT"),
+        (new(@"\bfinal cut\b", RegexOptions.IgnoreCase), "FINAL CUT"),
+        (new(@"\bextended\b", RegexOptions.IgnoreCase), "EXTENDED"),
+        (new(@"\bunrated\b", RegexOptions.IgnoreCase), "UNRATED"),
+        (new(@"\buncut\b", RegexOptions.IgnoreCase), "UNCUT"),
+        (new(@"\bimax\b", RegexOptions.IgnoreCase), "IMAX"),
+        (new(@"\bcriterion\b", RegexOptions.IgnoreCase), "CRITERION"),
+        (new(@"\bremastered\b", RegexOptions.IgnoreCase), "REMASTERED"),
+        (new(@"\bspecial edition\b", RegexOptions.IgnoreCase), "SPECIAL EDITION")
+    ];
 
     /// <summary>
     /// Technical badges for the best of several versions of one item.
@@ -148,6 +171,87 @@ public static partial class BadgeDetector
         return result;
     }
 
+    /// <summary>
+    /// The edition from a file or folder name: Radarr's {edition-...} tag first, then known words like Extended or IMAX.
+    /// </summary>
+    /// <param name="path">The media file path.</param>
+    /// <returns>The edition badge, or null.</returns>
+    public static Badge? Edition(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return null;
+        }
+
+        foreach (var name in new[] { Path.GetFileNameWithoutExtension(path), Path.GetFileName(Path.GetDirectoryName(path)) ?? string.Empty })
+        {
+            var tag = EditionTag().Match(name);
+            if (tag.Success)
+            {
+                var text = tag.Groups[1].Value.Trim().ToUpperInvariant();
+                return new Badge(BadgeKind.Edition, text.Length > 20 ? text[..20].TrimEnd() : text);
+            }
+
+            var words = Separators().Replace(name, " ");
+            foreach (var (pattern, label) in Editions)
+            {
+                if (pattern.IsMatch(words))
+                {
+                    return new Badge(BadgeKind.Edition, label);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The status of a series: a new episode added lately, else returning or ended.
+    /// </summary>
+    /// <param name="status">The series status.</param>
+    /// <param name="lastAdded">When the newest episode was added to the library.</param>
+    /// <param name="now">The current time.</param>
+    /// <param name="newDays">How many days an episode counts as new.</param>
+    /// <returns>The status badge, or null.</returns>
+    public static Badge? Status(SeriesStatus? status, DateTime? lastAdded, DateTime now, int newDays)
+    {
+        if (lastAdded is not null && now - lastAdded.Value < TimeSpan.FromDays(newDays))
+        {
+            return new Badge(BadgeKind.Status, "NEW EPISODE");
+        }
+
+        return status switch
+        {
+            SeriesStatus.Continuing => new Badge(BadgeKind.Status, "RETURNING"),
+            SeriesStatus.Ended => new Badge(BadgeKind.Status, "ENDED"),
+            _ => null
+        };
+    }
+
+    /// <summary>
+    /// A language badge: "NL" when there is audio in the language, "NL SUBS" when only subtitles.
+    /// </summary>
+    /// <param name="streams">All streams of the item, external subtitles included.</param>
+    /// <param name="codes">The language's codes, two letter first (nl, dut, nld).</param>
+    /// <returns>The language badge, or null.</returns>
+    public static Badge? Language(IEnumerable<MediaStream> streams, IReadOnlyList<string> codes)
+    {
+        if (codes.Count == 0)
+        {
+            return null;
+        }
+
+        var types = streams
+            .Where(s => s.Language is not null && codes.Contains(s.Language, StringComparer.OrdinalIgnoreCase))
+            .Select(s => s.Type)
+            .ToList();
+        var label = codes[0].ToUpperInvariant();
+
+        return types.Contains(MediaStreamType.Audio) ? new Badge(BadgeKind.Language, label)
+            : types.Contains(MediaStreamType.Subtitle) ? new Badge(BadgeKind.Language, label + " SUBS")
+            : null;
+    }
+
     private static VersionScore Score(IReadOnlyList<MediaStream> streams, string? path)
     {
         var video = streams.Where(s => s.Type == MediaStreamType.Video).MaxBy(s => (s.Width ?? 0) * (s.Height ?? 0));
@@ -167,17 +271,41 @@ public static partial class BadgeDetector
             IsRemux(path) ? new(1, "REMUX") : Ranked.None);
     }
 
+    /// <summary>
+    /// Whether a badge marks something that stands out. Everyday quality (720p, SD, stereo, mono, lossy audio, older codecs) does not.
+    /// </summary>
+    /// <param name="badge">The badge.</param>
+    /// <returns>False for everyday quality.</returns>
+    public static bool IsPremium(Badge badge) => (badge.Kind, badge.Text) switch
+    {
+        (BadgeKind.Resolution, "720p" or "SD") => false,
+        (BadgeKind.AudioChannels, "2.0" or "2.1" or "MONO") => false,
+        (BadgeKind.AudioFormat, "DTS" or "DD+" or "DD" or "AAC" or "OPUS" or "MP3") => false,
+        (BadgeKind.VideoCodec, "H.264" or "VC-1" or "MPEG-2" or "MPEG-4") => false,
+        _ => true
+    };
+
     private static Ranked VideoCodec(MediaStream video) => (video.Codec ?? string.Empty).ToLowerInvariant() switch
     {
-        "av1" => new(3, "AV1"),
-        "hevc" or "h265" => new(2, "HEVC"),
-        "h264" or "avc" => new(1, "H.264"),
+        "av1" => new(7, "AV1"),
+        "hevc" or "h265" => new(6, "HEVC"),
+        "vp9" => new(5, "VP9"),
+        "h264" or "avc" => new(4, "H.264"),
+        "vc1" => new(3, "VC-1"),
+        "mpeg2video" => new(2, "MPEG-2"),
+        "mpeg4" or "msmpeg4v3" => new(1, "MPEG-4"),
         _ => Ranked.None
     };
 
     // Release names say "Remux" (Movie.2019.2160p.UHD.BluRay.REMUX.mkv), in the file or its folder; the streams alone cannot tell.
     private static bool IsRemux(string? path)
         => path is not null && (RemuxWord().IsMatch(Path.GetFileName(path)) || RemuxWord().IsMatch(Path.GetFileName(Path.GetDirectoryName(path)) ?? string.Empty));
+
+    [GeneratedRegex(@"\{edition-([^}]+)\}", RegexOptions.IgnoreCase)]
+    private static partial Regex EditionTag();
+
+    [GeneratedRegex(@"[._\-\[\]()]+")]
+    private static partial Regex Separators();
 
     [GeneratedRegex(@"(^|[^a-z])remux([^a-z]|$)", RegexOptions.IgnoreCase)]
     private static partial Regex RemuxWord();
@@ -222,33 +350,53 @@ public static partial class BadgeDetector
 
         if (Has(profile, "atmos") || Has(audio.Title, "atmos"))
         {
-            return new(4, "ATMOS");
+            return new(11, "ATMOS");
         }
 
         if (isDts && (Has(profile, "dts:x") || Has(profile, "dts-x")))
         {
-            return new(3, "DTS:X");
-        }
-
-        if (codec.Equals("truehd", StringComparison.OrdinalIgnoreCase))
-        {
-            return new(2, "TRUEHD");
+            return new(10, "DTS:X");
         }
 
         if (isDts && Has(profile, "ma"))
         {
-            return new(1, "DTS-HD MA");
+            return new(8, "DTS-HD MA");
         }
 
-        return Ranked.None;
+        return codec.ToLowerInvariant() switch
+        {
+            "truehd" => new(9, "TRUEHD"),
+            "flac" => new(7, "FLAC"),
+            _ when codec.StartsWith("pcm", StringComparison.OrdinalIgnoreCase) => new(7, "PCM"),
+            "dts" => new(6, "DTS"),
+            "eac3" => new(5, "DD+"),
+            "ac3" => new(4, "DD"),
+            "aac" => new(3, "AAC"),
+            "opus" => new(2, "OPUS"),
+            "mp3" => new(1, "MP3"),
+            _ => Ranked.None
+        };
     }
 
-    private static Ranked AudioChannels(MediaStream audio) => audio.Channels switch
+    // The layout ffprobe reports ("5.1(side)", "2.1", "stereo") is most exact; the channel count covers files without one.
+    private static Ranked AudioChannels(MediaStream audio)
     {
-        >= 8 => new(2, "7.1"),
-        >= 6 => new(1, "5.1"),
-        _ => Ranked.None
-    };
+        var layout = ChannelLayout().Match(audio.ChannelLayout ?? string.Empty);
+        var text = layout.Success ? layout.Value : audio.Channels switch
+        {
+            >= 8 => "7.1",
+            >= 6 => "5.1",
+            3 => "2.1",
+            2 => "2.0",
+            1 => "MONO",
+            _ => null
+        };
+
+        return text is null ? Ranked.None : new(Math.Max(1, audio.Channels ?? 0), text);
+    }
+
+    [GeneratedRegex(@"^\d\.\d")]
+    private static partial Regex ChannelLayout();
 
     private static bool Has(string? value, string part) => value?.Contains(part, StringComparison.OrdinalIgnoreCase) == true;
 

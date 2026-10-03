@@ -90,8 +90,29 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether to show the critic rating badge.</summary>
     public bool ShowCriticRating { get; set; } = true;
 
+    /// <summary>Gets or sets a value indicating whether to show the edition (Director's Cut, Extended, IMAX) of movies.</summary>
+    public bool ShowEdition { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether series show NEW EPISODE, RETURNING or ENDED.</summary>
+    public bool ShowStatus { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to show a badge for audio or subtitles in <see cref="LanguageCodes"/>.</summary>
+    public bool ShowLanguage { get; set; }
+
+    /// <summary>Gets or sets the codes of the language for the language badge, two letter first (nl, dut, nld).</summary>
+    public string[] LanguageCodes { get; set; } = [];
+
+    /// <summary>Gets or sets a value indicating whether everyday quality (720p, SD, stereo, mono, lossy audio, older codecs) is left off.</summary>
+    public bool PremiumOnly { get; set; }
+
     /// <summary>Gets or sets a value indicating whether episode thumbnails get badged too.</summary>
     public bool BadgeEpisodes { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether season posters get badged too.</summary>
+    public bool BadgeSeasons { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether a season without its own rating shows the average of its episode ratings instead of the series rating.</summary>
+    public bool SeasonRatingFromEpisodes { get; set; }
 
     /// <summary>Gets or sets a value indicating whether collection posters get badged too.</summary>
     public bool BadgeCollections { get; set; }
