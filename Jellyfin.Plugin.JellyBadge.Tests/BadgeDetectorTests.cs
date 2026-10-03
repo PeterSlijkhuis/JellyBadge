@@ -79,10 +79,20 @@ public class BadgeDetectorTests
     [InlineData(SeriesStatus.Continuing, 30, "RETURNING")]
     [InlineData(SeriesStatus.Ended, 30, "ENDED")]
     [InlineData(null, 30, null)]
+    [InlineData(SeriesStatus.Continuing, -3, "RETURNING")]
     public void SeriesStatusBadge(SeriesStatus? status, int daysSinceAdded, string? expected)
     {
         var now = new System.DateTime(2026, 10, 3, 0, 0, 0, System.DateTimeKind.Utc);
         Assert.Equal(expected, BadgeDetector.Status(status, now.AddDays(-daysSinceAdded), now, 7)?.Text);
+    }
+
+    [Fact]
+    public void UnscannedEpisodesDoNotVote()
+    {
+        List<Badge> hd = [new(BadgeKind.Resolution, "1080p"), new(BadgeKind.AudioChannels, "5.1")];
+        var badges = BadgeDetector.MostCommon([hd, [], [], [], hd.ToList()]);
+
+        Assert.Equal("1080p,5.1", Texts(badges));
     }
 
     [Fact]

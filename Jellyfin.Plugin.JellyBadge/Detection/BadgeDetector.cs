@@ -130,11 +130,14 @@ public static partial class BadgeDetector
     /// <returns>The most common badges.</returns>
     public static List<Badge> MostCommon(IReadOnlyCollection<IReadOnlyList<Badge>> perEpisode)
     {
+        // Episodes without video info (not scanned yet, or a broken file) have no say: they would vote "no badge" for everything.
+        var scanned = perEpisode.Where(badges => badges.Any(b => b.Kind == BadgeKind.Resolution)).ToList();
+        var voters = scanned.Count > 0 ? scanned : perEpisode;
         var result = new List<Badge>();
         foreach (var kind in TechnicalKinds)
         {
             // "No badge" counts as a value too, so a mostly SDR show gets no HDR badge.
-            var winner = perEpisode
+            var winner = voters
                 .GroupBy(badges => badges.FirstOrDefault(b => b.Kind == kind)?.Text)
                 .OrderByDescending(g => g.Count())
                 .ThenByDescending(g => g.Key is not null)
@@ -206,16 +209,16 @@ public static partial class BadgeDetector
     }
 
     /// <summary>
-    /// The status of a series: a new episode added lately, else returning or ended.
+    /// The status of a series: an episode that aired lately, else returning or ended.
     /// </summary>
     /// <param name="status">The series status.</param>
-    /// <param name="lastAdded">When the newest episode was added to the library.</param>
+    /// <param name="lastAired">When the newest episode in the library aired.</param>
     /// <param name="now">The current time.</param>
     /// <param name="newDays">How many days an episode counts as new.</param>
     /// <returns>The status badge, or null.</returns>
-    public static Badge? Status(SeriesStatus? status, DateTime? lastAdded, DateTime now, int newDays)
+    public static Badge? Status(SeriesStatus? status, DateTime? lastAired, DateTime now, int newDays)
     {
-        if (lastAdded is not null && now - lastAdded.Value < TimeSpan.FromDays(newDays))
+        if (lastAired is not null && lastAired.Value <= now && now - lastAired.Value < TimeSpan.FromDays(newDays))
         {
             return new Badge(BadgeKind.Status, "NEW EPISODE");
         }
