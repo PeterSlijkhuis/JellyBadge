@@ -170,9 +170,31 @@ Kometa is a separate script you run on a schedule, built around Plex. JellyBadge
 </details>
 
 <details>
+<summary><b>How does JellyBadge keep badges in place?</b></summary>
+
+Jellyfin's library scan and metadata refresh often point a poster back at the `poster.jpg` next to your media. The badged poster is still there, Jellyfin just stops showing it. JellyBadge watches for this in four ways:
+
+| What | When | What it does |
+| --- | --- | --- |
+| **Fast lane** | Every time Jellyfin saves an item | If the poster was swapped back to the original, points it at the badged one again. Nothing is redrawn, so the badge is back within a second. |
+| **Item check** | Right after the fast lane | Works out the badges again and redraws only if they changed, for example after a scan found a 4K file or the rating changed. |
+| **Poster badges task** | After every other scheduled task, after you save the settings, and once a day | Checks every poster. Items that did not change since the last run are skipped, so a run over a fully badged library takes seconds. |
+| **Safety check** | 30 seconds after the server starts, then every 5 minutes | Compares each badged poster with what JellyBadge left behind and fixes anything that was swapped or overwritten. |
+
+A few rules decide what happens next:
+
+- **A new movie or show** is badged as soon as Jellyfin adds it. A show's quality badges fill in as its episodes finish scanning.
+- **A different poster** (a new one from TMDb, or one you picked) becomes the new original. JellyBadge backs it up and badges it, and never swaps it back to the old one.
+- **While a scan is still reading a file's media info**, the badges stay as they are instead of being dropped.
+- **Turning JellyBadge off**, disabling it in the plugin list or uninstalling it puts every original poster back.
+
+The **Activity** section shows what was badged, and once a minute at most, how many posters a scan swapped back.
+</details>
+
+<details>
 <summary><b>My badges disappeared after the nightly tasks. What happened?</b></summary>
 
-Some scheduled tasks and outside tools (metadata plugins, Sonarr, Radarr) can put the original poster back. JellyBadge checks all posters again after every other scheduled task finishes and badges them again, which takes seconds when nothing changed. A library scan or metadata refresh often swaps a badged poster back to the poster next to your media: JellyBadge puts the badged one back within a second, ahead of everything else it is doing. On top of that it looks 30 seconds after the server starts, and every 5 minutes after that, for badged posters that were swapped behind its back and badges them again, and while a scan has a file's media info half read, it keeps the badges it has instead of dropping them. The **Activity** section shows what changed and what was badged afterwards.
+Most likely a library scan, a metadata refresh or an outside tool (a metadata plugin, Sonarr, Radarr) put the original poster back. JellyBadge puts the badges back by itself, usually within a second and at most within 5 minutes. See **How does JellyBadge keep badges in place?** above. The **Activity** section shows what changed and what was badged afterwards.
 </details>
 
 <details>
