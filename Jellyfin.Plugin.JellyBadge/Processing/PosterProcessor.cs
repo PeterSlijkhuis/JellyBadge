@@ -336,7 +336,14 @@ public sealed class PosterProcessor : IDisposable
         SaveState(item.Id, state);
         await SavePrimaryAsync(item, output, BadgeRenderer.MimeType(output), cancellationToken).ConfigureAwait(false);
         MarkDone(item, state);
-        Activity.Log(_logger, LogLevel.Debug, null, "Badged {Item}: {Badges}", item.Name, string.Join(", ", badges.Select(b => b.Text)));
+        if (badges.Count == 0)
+        {
+            Activity.Log(_logger, LogLevel.Debug, null, "{Item} has no badges to show, original poster put back", item.Name);
+        }
+        else
+        {
+            Activity.Log(_logger, LogLevel.Debug, null, "Badged {Item}: {Badges}", item.Name, string.Join(", ", badges.Select(b => b.Text)));
+        }
     }
 
     private static string InputHash(PosterState state, List<Badge> badges, PluginConfiguration config)
@@ -460,7 +467,7 @@ public sealed class PosterProcessor : IDisposable
                 BadgeKind.Remux => config.ShowRemux,
                 BadgeKind.CommunityRating => config.ShowCommunityRating,
                 _ => config.ShowCriticRating
-            })
+            } && (!config.PremiumOnly || BadgeDetector.IsPremium(b)))
             .ToList();
     }
 

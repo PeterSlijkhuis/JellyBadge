@@ -90,6 +90,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether to show the critic rating badge.</summary>
     public bool ShowCriticRating { get; set; } = true;
 
+    /// <summary>Gets or sets a value indicating whether everyday quality (720p, SD, stereo, H.264) is left off.</summary>
+    public bool PremiumOnly { get; set; }
+
     /// <summary>Gets or sets a value indicating whether episode thumbnails get badged too.</summary>
     public bool BadgeEpisodes { get; set; }
 

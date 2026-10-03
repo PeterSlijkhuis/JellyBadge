@@ -18,7 +18,7 @@ public class BadgeDetectorTests
     [InlineData("fhd-hdr10plus-dtsx", "1080p,HDR10+,HEVC,DTS:X,7.1")]
     [InlineData("scope-sdr-dtshdma", "1080p,H.264,DTS-HD MA,5.1")]
     [InlineData("hd-hlg-eac3-atmos", "720p,HLG,HEVC,ATMOS,5.1")]
-    [InlineData("sd-stereo", "SD")]
+    [InlineData("sd-stereo", "SD,2.0")]
     [InlineData("dolby-vision-invalid", "4K,HDR10,HEVC,TRUEHD,7.1")]
     public void DetectsTechnicalBadges(string fixture, string expected)
     {
@@ -60,7 +60,17 @@ public class BadgeDetectorTests
     [Fact]
     public void DetectsAv1()
     {
-        Assert.Equal("1080p,AV1", Texts(BadgeDetector.BestVersion([Load("fhd-av1-stereo")])));
+        Assert.Equal("1080p,AV1,2.0", Texts(BadgeDetector.BestVersion([Load("fhd-av1-stereo")])));
+    }
+
+    [Theory]
+    [InlineData("uhd-dolby-vision-atmos", "4K,DOLBY VISION,HEVC,ATMOS,7.1")]
+    [InlineData("scope-sdr-dtshdma", "1080p,DTS-HD MA,5.1")]
+    [InlineData("hd-hlg-eac3-atmos", "HLG,HEVC,ATMOS,5.1")]
+    [InlineData("sd-stereo", "")]
+    public void PremiumLeavesOutEverydayQuality(string fixture, string expected)
+    {
+        Assert.Equal(expected, Texts(BadgeDetector.BestVersion([Load(fixture)]).Where(BadgeDetector.IsPremium).ToList()));
     }
 
     [Fact]

@@ -167,6 +167,19 @@ public static partial class BadgeDetector
             IsRemux(path) ? new(1, "REMUX") : Ranked.None);
     }
 
+    /// <summary>
+    /// Whether a badge marks something that stands out. Everyday quality (720p, SD, stereo, H.264) does not.
+    /// </summary>
+    /// <param name="badge">The badge.</param>
+    /// <returns>False for everyday quality.</returns>
+    public static bool IsPremium(Badge badge) => (badge.Kind, badge.Text) switch
+    {
+        (BadgeKind.Resolution, "720p" or "SD") => false,
+        (BadgeKind.AudioChannels, "2.0") => false,
+        (BadgeKind.VideoCodec, "H.264") => false,
+        _ => true
+    };
+
     private static Ranked VideoCodec(MediaStream video) => (video.Codec ?? string.Empty).ToLowerInvariant() switch
     {
         "av1" => new(3, "AV1"),
@@ -245,8 +258,9 @@ public static partial class BadgeDetector
 
     private static Ranked AudioChannels(MediaStream audio) => audio.Channels switch
     {
-        >= 8 => new(2, "7.1"),
-        >= 6 => new(1, "5.1"),
+        >= 8 => new(3, "7.1"),
+        >= 6 => new(2, "5.1"),
+        2 => new(1, "2.0"),
         _ => Ranked.None
     };
 
