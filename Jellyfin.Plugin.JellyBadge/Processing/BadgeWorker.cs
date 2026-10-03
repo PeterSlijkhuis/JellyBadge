@@ -126,15 +126,16 @@ public sealed class BadgeWorker : BackgroundService
         }
 
         // Our own poster save fires ItemUpdated too: drop it here, the hash check catches anything else.
-        if (e.Item is Movie or Series or Episode or BoxSet && !_processor.IsOwnWrite(e.Item))
+        if (e.Item is Movie or Series or Season or Episode or BoxSet && !_processor.IsOwnWrite(e.Item))
         {
             Enqueue(e.Item.Id);
         }
 
-        // A new or updated episode can change what is most common for its series.
+        // A new or updated episode can change what is most common for its series and season.
         if (e.Item is Episode episode)
         {
             Enqueue(episode.SeriesId);
+            Enqueue(episode.SeasonId);
         }
     }
 
