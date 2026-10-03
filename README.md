@@ -11,7 +11,7 @@
 
 <p align="center"><b>Quality and rating badges on your posters, stamped on the server, visible in every Jellyfin app.</b></p>
 
-JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos** and **★ 8.4** to your movie and series posters. The badges are drawn into the poster image itself, so they show up everywhere: the web app, phones, tablets and native TV apps such as Wholphin on Android TV. No themes, no CSS, no JavaScript, nothing to install on your devices.
+JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos**, **★ 8.4**, **NEW EPISODE** and **DIRECTOR'S CUT** to your movie and series posters. The badges are drawn into the poster image itself, so they show up everywhere: the web app, phones, tablets and native TV apps such as Wholphin on Android TV. No themes, no CSS, no JavaScript, nothing to install on your devices.
 
 **Know Kometa overlays from Plex?** JellyBadge brings the same idea to Jellyfin as a regular plugin: resolution, HDR, codec, audio and rating overlays on your posters, set up from the dashboard with a live preview. No scripts, no config files, no cron jobs.
 
@@ -41,13 +41,17 @@ JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos** and **★ 
 ## What you get
 
 - **Works in every client.** Badges are part of the poster, so every Jellyfin app shows them, including ones that never load custom styles.
-- **Smart detection.** Resolution, HDR format, audio format and channels come from your actual files. For movies with several versions, the best one wins. For series, the most common quality across the episodes is used.
+- **Smart detection.** Resolution, HDR format, codec, audio format and channel layout come from your actual files. For movies with several versions, the best one wins. For series, seasons and collections, the most common quality across the episodes or movies is used.
 - **Ratings at a glance.** Community score and critic score from your existing metadata.
+- **More than quality.** Optional badges for the edition (Director's Cut, Extended, IMAX), the show status (NEW EPISODE, SEASON 3 SOON, RETURNING, ENDED) and audio or subtitles in your own language.
+- **Only what stands out.** One switch leaves out everyday quality like 720p, stereo and H.264, so badges only appear on the special stuff.
+- **Your layout.** Pick one spot for all badges, or a spot per badge: quality top left, status top right, ratings along the bottom.
 - **Your originals are safe.** Every original poster is backed up before the first change, and one button puts them all back.
-- **Hands off.** New and updated items are badged automatically in the background, and a daily task keeps the whole library in sync. Library scans never wait on it.
-- **Keeps up with changes.** When a metadata refresh or an upload replaces a poster, JellyBadge treats the new one as the original and badges it again.
-- **Episodes too, if you like.** Switch on episode thumbnails and every episode gets its own quality and rating badges.
+- **Hands off.** New and updated items are badged automatically in the background. After library scans and metadata plugin tasks, and once a day, every poster is checked again. Library scans never wait on it.
+- **Keeps up with changes.** When a metadata refresh, an upload or another tool replaces a poster, JellyBadge treats the new one as the original and badges it again.
+- **Seasons, episodes and collections too, if you like.** Each has its own switch.
 - **Live preview.** See exactly how a poster will look before anything is written.
+- **Activity log.** The settings page shows what JellyBadge did and why, so you can see what happened overnight.
 
 ### Badges
 
@@ -109,10 +113,11 @@ Open **Dashboard > Plugins > JellyBadge**.
 
 <p align="center"><img src="docs/settings.png" alt="JellyBadge settings page" width="900" /></p>
 
-1. **Pick your badges.** Click a tile to switch a badge group on or off.
-2. **Choose the placement.** Click a spot on the little poster.
+1. **Pick your badges.** Click a tile to switch a badge group on or off. With **Language** on, pick your language in the list below the tiles. Switch on **Only premium badges** for a cleaner look.
+2. **Choose the placement.** Click a spot on the little poster. To give badges their own spots, switch on **Choose a spot per badge** and pick a spot in each row.
 3. **Choose a style and size.** The live preview updates as you go. Search any movie or series to try it on, and hold **Hold to compare** to see the original.
-4. **Switch it on.** Flip the switch at the top to **Active**, then click **Save and apply now**.
+4. **Choose what to badge.** Under **Libraries**, pick libraries and switch on season posters, episode thumbnails or collection posters if you want them.
+5. **Switch it on.** Flip the switch at the top to **Active**, then click **Save and apply now**.
 
 JellyBadge is off after installing, so nothing changes until you switch it on. Progress of the first run shows under **Dashboard > Scheduled Tasks > Apply poster badges**.
 
@@ -128,14 +133,17 @@ The **Activity** section on the same page lists what JellyBadge did recently and
 - Show the most common quality of a series or season, based on its episodes.
 - Badge episode thumbnails with the episode's own quality and rating, when you switch that on under **Libraries**. Switch it off again and the next run puts the original thumbnails back.
 - Badge collection posters with the most common quality of the movies in them, when you switch that on under **Libraries**.
-- Keep running by itself: new items, updated items and a daily check of everything.
+- Show the edition of a movie, the status of a series and a badge for audio or subtitles in your language.
+- Place each badge group in its own corner or strip.
+- Keep running by itself: new items, updated items, a check after library scans and metadata plugin tasks, and a daily check of everything.
 - Put every original poster back with one click.
 
 **It cannot**
 
-- Badge season posters, backdrops or logos. Only the main poster of movies, series and collections, and optionally the episode thumbnail, is changed.
+- Badge backdrops or logos. Only the main poster of movies, series, seasons and collections, and the episode thumbnail, is changed.
 - Tell a remux from an encode by the file itself. The Remux badge only shows when the file or its folder has "Remux" in the name.
 - Add custom badges, colors, logos of rating sites, or seasonal and decorative overlays.
+- Show SEASON SOON without upcoming episodes in Jellyfin. See the FAQ below.
 - Detect what Jellyfin does not know. Badges are based on the media info Jellyfin reads from your files, so if Jellyfin does not report Atmos or DTS:X for a file, there is no badge for it.
 - Say which site a rating came from. Jellyfin stores one community rating and one critic rating without a source, so the badges show a neutral star and check mark.
 - Run on Jellyfin 10.x.
@@ -199,7 +207,7 @@ It treats your new poster as the original, backs it up and adds badges to it. If
 <details>
 <summary><b>Will it slow down my server or library scans?</b></summary>
 
-No. Library events only add the item to a queue. The work happens in the background, two posters at a time by default, and items whose poster, settings and media did not change are skipped without even opening the image. New movies, shows and episodes are badged as soon as Jellyfin has their artwork, without waiting for the daily task.
+No. Library events only add the item to a queue. The work happens in the background, two posters at a time by default, and items whose poster, settings and media did not change are skipped without even opening the image. New movies, shows and episodes are badged as soon as Jellyfin has their artwork, without waiting for the daily task. Jellyfin's housekeeping tasks, like plugin updates and log cleanup, do not trigger a check.
 </details>
 
 <details>
@@ -212,6 +220,12 @@ In the plugin's data folder inside your Jellyfin data folder: `plugins/Jellyfin.
 <summary><b>Do episodes have ratings?</b></summary>
 
 Most do. Metadata providers such as TMDb and TheTVDB give each episode its own community score, so episode thumbnails get a star badge just like posters. Critic scores for single episodes are rare, so that badge usually stays away on episodes. Episodes that Jellyfin has no rating for simply get no rating badge.
+</details>
+
+<details>
+<summary><b>What rating does a season show?</b></summary>
+
+Seasons have no rating of their own in Jellyfin, so a season shows the series rating. Switch on **Season rating from its episodes** under **Season posters** to show the average of its rated episodes instead. Episodes without a rating are left out of that average.
 </details>
 
 <details>

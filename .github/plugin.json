@@ -3,7 +3,7 @@
   "guid": "9d421997-eadd-4434-a275-a4e85fb3771c",
   "name": "JellyBadge",
   "overview": "Quality and rating badges on your posters, for every client",
-  "description": "Poster overlays for Jellyfin. Stamps resolution, HDR, codec, remux, audio and rating badges onto movie, series and collection posters and episode thumbnails on the server, so they show in every Jellyfin client, including native TV apps. Originals are backed up and can be restored at any time.",
+  "description": "Poster overlays for Jellyfin. Stamps resolution, HDR, codec, remux, audio, rating, edition, show status and language badges onto movie, series, season and collection posters and episode thumbnails on the server, so they show in every Jellyfin client, including native TV apps. Choose one spot for all badges or a spot per badge. Originals are backed up and can be restored at any time.",
   "owner": "PeterSlijkhuis",
   "category": "Metadata",
   "targetAbi": "12.1.0.0",
