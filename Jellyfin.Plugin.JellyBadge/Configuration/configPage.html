@@ -98,6 +98,25 @@
                 position: absolute; border: 2px dashed rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.06);
                 border-radius: 8px; cursor: pointer; padding: 0; transition: background 0.15s, border-color 0.15s;
             }
+            #JellyBadgeConfigPage .jb-spots { margin-top: 0.8em; display: grid; gap: 0.5em; }
+            #JellyBadgeConfigPage .jb-spot-row { display: flex; align-items: center; gap: 0.7em; flex-wrap: wrap; padding: 0.5em 0.7em; border: 1px solid var(--jb-line); border-radius: 10px; }
+            #JellyBadgeConfigPage .jb-spot-row .jb-chip { min-width: 5.5em; text-align: center; }
+            #JellyBadgeConfigPage .jb-spot-row b { flex: 1 1 8em; font-weight: 600; }
+            #JellyBadgeConfigPage .jb-picks { display: flex; gap: 0.35em; flex-wrap: wrap; }
+            #JellyBadgeConfigPage .jb-pick {
+                position: relative; width: 24px; height: 36px; padding: 0; border-radius: 4px; cursor: pointer; flex: none;
+                border: 1px solid rgba(255, 255, 255, 0.35); background: linear-gradient(160deg, #3b4a7a, #1b2238);
+            }
+            #JellyBadgeConfigPage .jb-pick.default { width: auto; padding: 0 0.6em; font: inherit; font-size: 0.8em; color: inherit; background: transparent; }
+            #JellyBadgeConfigPage .jb-pick[aria-checked="true"] { border: 2px solid var(--jb-accent); box-shadow: 0 0 0 2px rgba(0, 164, 220, 0.35); }
+            #JellyBadgeConfigPage .jb-pick.default[aria-checked="true"] { background: rgba(0, 164, 220, 0.2); }
+            #JellyBadgeConfigPage .jb-pick i { position: absolute; background: #fff; border-radius: 2px; }
+            #JellyBadgeConfigPage .jb-pick i.tl { top: 3px; left: 3px; width: 8px; height: 5px; }
+            #JellyBadgeConfigPage .jb-pick i.tr { top: 3px; right: 3px; width: 8px; height: 5px; }
+            #JellyBadgeConfigPage .jb-pick i.bl { bottom: 3px; left: 3px; width: 8px; height: 5px; }
+            #JellyBadgeConfigPage .jb-pick i.br { bottom: 3px; right: 3px; width: 8px; height: 5px; }
+            #JellyBadgeConfigPage .jb-pick i.ts { top: 2px; left: 2px; right: 2px; height: 5px; }
+            #JellyBadgeConfigPage .jb-pick i.bs { bottom: 2px; left: 2px; right: 2px; height: 5px; }
             #JellyBadgeConfigPage .jb-spot:hover { background: rgba(0, 164, 220, 0.25); border-color: #fff; }
             #JellyBadgeConfigPage .jb-spot[aria-checked="true"] { background: var(--jb-accent); border: 2px solid #fff; }
             #JellyBadgeConfigPage .jb-spot.corner { width: 32%; height: 22%; }
@@ -243,6 +262,11 @@
                                     <div class="jb-hint" id="jbPlaceHint" style="margin-top:0.4em;"></div>
                                 </div>
                             </div>
+                            <button type="button" class="jb-tile" role="switch" id="jbSpotPerBadge" data-key="SpotPerBadge" aria-checked="false" style="margin-top:1em;width:100%;">
+                                <span class="jb-tile-text"><b>Choose a spot per badge</b><small>For example quality at the top and ratings at the bottom. The spot above is used for every badge you leave on Default.</small></span>
+                                <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
+                            </button>
+                            <div class="jb-spots" id="jbSpots" role="group" aria-label="Spot per badge" hidden></div>
                         </section>
 
                         <section class="jb-card">
@@ -411,7 +435,7 @@
                             '<span class="jb-switch" aria-hidden="true" aria-checked="' + !!config[b[0]] + '"></span></button>';
                     }).join('');
 
-                    [['jbPremium', 'PremiumOnly'], ['jbEpisodes', 'BadgeEpisodes'], ['jbSeasons', 'BadgeSeasons'], ['jbSeasonRating', 'SeasonRatingFromEpisodes'], ['jbCollections', 'BadgeCollections']].forEach(function (t) {
+                    [['jbSpotPerBadge', 'SpotPerBadge'], ['jbPremium', 'PremiumOnly'], ['jbEpisodes', 'BadgeEpisodes'], ['jbSeasons', 'BadgeSeasons'], ['jbSeasonRating', 'SeasonRatingFromEpisodes'], ['jbCollections', 'BadgeCollections']].forEach(function (t) {
                         [$(t[0]), $(t[0]).querySelector('.jb-switch')].forEach(function (el) { el.setAttribute('aria-checked', String(!!config[t[1]])); });
                     });
                     $('jbSeasonRating').hidden = !config.BadgeSeasons;
@@ -422,6 +446,20 @@
                     $('jbPoster').innerHTML = positions.map(function (p) {
                         return choice('jb-spot ' + p[1], p[0], config.Position, '', p[2]);
                     }).join('');
+                    // One row per badge group that is switched on, each with Default plus the six spots.
+                    $('jbSpots').hidden = !config.SpotPerBadge;
+                    config.Spots = config.Spots || [];
+                    $('jbSpots').innerHTML = badges.filter(function (b) { return config[b[0]]; }).map(function (b) {
+                        var kind = b[0].slice(4);
+                        var current = (config.Spots.filter(function (sp) { return sp.Kind === kind; })[0] || {}).Position || 'Default';
+                        return '<div class="jb-spot-row"><span class="jb-chip">' + b[3] + '</span><b>' + b[1] + '</b><div class="jb-picks" role="radiogroup" aria-label="' + esc(b[1]) + ' spot">' +
+                            '<button type="button" class="jb-pick default" role="radio" data-kind="' + kind + '" data-value="Default" aria-checked="' + (current === 'Default') + '">Default</button>' +
+                            positions.map(function (p) {
+                                return '<button type="button" class="jb-pick" role="radio" data-kind="' + kind + '" data-value="' + p[0] + '" aria-checked="' + (current === p[0]) +
+                                    '" aria-label="' + esc(p[2]) + '" title="' + esc(p[2]) + '"><i class="' + p[1].split(' ')[1] + '"></i></button>';
+                            }).join('') + '</div></div>';
+                    }).join('');
+
                     var pos = positions.filter(function (p) { return p[0] === config.Position; })[0] || positions[0];
                     $('jbPlaceLabel').textContent = pos[2];
                     $('jbPlaceHint').textContent = pos[3];
@@ -535,6 +573,13 @@
                     if (el.id === 'jbEnabled') { config.Enabled = !config.Enabled; render(); return; }
                     if (el.classList.contains('jb-tile')) { config[el.getAttribute('data-key')] = !config[el.getAttribute('data-key')]; changed(); return; }
                     if (el.classList.contains('jb-spot')) { config.Position = el.getAttribute('data-value'); changed(); return; }
+                    if (el.classList.contains('jb-pick')) {
+                        var kind = el.getAttribute('data-kind');
+                        config.Spots = (config.Spots || []).filter(function (sp) { return sp.Kind !== kind; });
+                        if (el.getAttribute('data-value') !== 'Default') { config.Spots.push({ Kind: kind, Position: el.getAttribute('data-value') }); }
+                        changed();
+                        return;
+                    }
                     if (el.parentNode.id === 'jbStyle') { config.Style = el.getAttribute('data-value'); changed(); return; }
                     if (el.parentNode.id === 'jbSize') { config.Size = el.getAttribute('data-value'); changed(); return; }
                     if (el.classList.contains('jb-lib')) {
