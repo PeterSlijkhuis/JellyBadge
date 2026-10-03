@@ -67,6 +67,8 @@
 
             /* Badge tiles */
             #JellyBadgeConfigPage .jb-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 0.7em; }
+            /* Rules with a display value would otherwise beat the hidden attribute. */
+            #JellyBadgeConfigPage [hidden] { display: none !important; }
             #JellyBadgeConfigPage .jb-tile {
                 display: flex; align-items: center; gap: 0.8em; padding: 0.8em 0.9em; text-align: left; width: 100%;
                 border-radius: 12px; border: 1px solid var(--jb-line); background: transparent; color: inherit; cursor: pointer; font: inherit;
