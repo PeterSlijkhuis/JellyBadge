@@ -102,6 +102,20 @@ public sealed class PosterProcessorTests : IDisposable
     }
 
     [Fact]
+    public async Task RebadgesPosterRewrittenOnDiskBehindJellyfinsBack()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        // Another tool puts the original back in place; Jellyfin's record of the image stays the same.
+        File.Copy(_mediaPoster, CurrentPath(), true);
+        File.SetLastWriteTimeUtc(CurrentPath(), DateTime.UtcNow.AddMinutes(5));
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(2, _saves);
+        Assert.NotEqual(Bytes(_mediaPoster), Bytes(CurrentPath()));
+    }
+
+    [Fact]
     public async Task RebadgesWhenInputsChange()
     {
         await _processor.ProcessAsync(_item, CancellationToken.None);

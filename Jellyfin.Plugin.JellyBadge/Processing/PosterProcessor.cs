@@ -242,7 +242,10 @@ public sealed class PosterProcessor : IDisposable
         var info = item.GetImageInfo(ImageType.Primary, 0);
 
         // Done before: same image file as we left it and same badges and settings. Skip without reading the image.
+        // The file's own timestamp is checked too, because other tools (Radarr, Sonarr, metadata plugins) can rewrite
+        // a poster on disk without Jellyfin noticing.
         if (state is not null && info is not null && info.Path == state.OutputPath && info.DateModified == state.OutputModified
+            && File.Exists(info.Path) && File.GetLastWriteTimeUtc(info.Path) == state.OutputModified
             && InputHash(state, badges, config) == state.InputHash)
         {
             return;
