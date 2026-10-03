@@ -33,8 +33,8 @@ public sealed class PosterProcessor : IDisposable
     // Bump when the drawing changes, so every poster gets re-rendered once.
     private const int RenderVersion = 2;
 
-    // How long a newly aired episode puts NEW EPISODE on its series.
-    private const int NewEpisodeDays = 7;
+    // How far ahead a season premiere puts SEASON n SOON on its series.
+    private const int UpcomingDays = 7;
 
     private readonly ILibraryManager _libraryManager;
     private readonly IProviderManager _providerManager;
@@ -44,6 +44,7 @@ public sealed class PosterProcessor : IDisposable
     private readonly SemaphoreSlim _gate;
     private readonly int _slots;
     private readonly ConcurrentDictionary<Guid, byte> _busy = new();
+    private readonly ConcurrentDictionary<Guid, byte> _again = new();
     private readonly ConcurrentDictionary<Guid, (string Path, DateTime Modified)> _written = new();
 
     /// <summary>
@@ -101,6 +102,11 @@ public sealed class PosterProcessor : IDisposable
             return false;
         }
 
+        if (Config.ExcludedItems.Contains(item.Id.ToString("N"), StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         var libraries = Config.Libraries;
         return libraries.Length == 0
             || _libraryManager.GetCollectionFolders(item).Any(f => libraries.Any(l => Guid.TryParse(l, out var id) && id == f.Id));
@@ -111,14 +117,85 @@ public sealed class PosterProcessor : IDisposable
     /// </summary>
     /// <param name="item">The item.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="episodeCache">Quality badges per episode, shared during one sweep so each episode is read once.</param>
     /// <returns>A task.</returns>
-    public async Task ProcessAsync(BaseItem item, CancellationToken cancellationToken)
+    public async Task ProcessAsync(BaseItem item, CancellationToken cancellationToken, ConcurrentDictionary<Guid, List<Badge>>? episodeCache = null)
     {
-        if (!Config.Enabled || !_busy.TryAdd(item.Id, 0))
+        if (!Config.Enabled)
         {
             return;
         }
 
+        if (!_busy.TryAdd(item.Id, 0))
+        {
+            // Busy with this item: run it again when done, so a change that came in meanwhile (a new poster) is not lost.
+            _again.TryAdd(item.Id, 0);
+            return;
+        }
+
+        try
+        {
+            await ProcessGatedAsync(item, episodeCache, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _busy.TryRemove(item.Id, out _);
+        }
+
+        if (_again.TryRemove(item.Id, out _))
+        {
+            await ProcessAsync(item, cancellationToken, episodeCache).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the backup and state of an item that left the library.
+    /// </summary>
+    /// <param name="id">The item id.</param>
+    public void Forget(Guid id)
+    {
+        if (LoadState(id, null) is { } state)
+        {
+            File.Delete(OriginalFile(id, state));
+            File.Delete(StateFile(id));
+            _written.TryRemove(id, out _);
+        }
+    }
+
+    /// <summary>
+    /// Forgets every item that is no longer in the library, for removals that happened while the server was down.
+    /// </summary>
+    /// <returns>How many were forgotten.</returns>
+    public int ForgetRemoved()
+    {
+        var stateDir = Path.Combine(DataDir, "state");
+        var removed = 0;
+        foreach (var file in Directory.Exists(stateDir) ? Directory.GetFiles(stateDir, "*.json") : [])
+        {
+            if (Guid.TryParse(Path.GetFileNameWithoutExtension(file), out var id) && _libraryManager.GetItemById(id) is null)
+            {
+                Forget(id);
+                removed++;
+            }
+        }
+
+        return removed;
+    }
+
+    /// <summary>
+    /// How many posters carry badges right now.
+    /// </summary>
+    /// <returns>The count.</returns>
+    public int CountBadged()
+    {
+        var stateDir = Path.Combine(DataDir, "state");
+        return Directory.Exists(stateDir)
+            ? Directory.GetFiles(stateDir, "*.json").Count(f => TryRead(f) is { } s && s.OutputHash.Length > 0 && s.OutputHash != s.OriginalHash)
+            : 0;
+    }
+
+    private async Task ProcessGatedAsync(BaseItem item, ConcurrentDictionary<Guid, List<Badge>>? episodeCache, CancellationToken cancellationToken)
+    {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -130,9 +207,9 @@ public sealed class PosterProcessor : IDisposable
 
             if (IsCandidate(item))
             {
-                await ProcessCoreAsync(item, cancellationToken).ConfigureAwait(false);
+                await ProcessCoreAsync(item, episodeCache, cancellationToken).ConfigureAwait(false);
             }
-            else if (LoadState(item.Id) is { } state)
+            else if (LoadState(item.Id, item) is { } state)
             {
                 // Excluded since we badged it (episodes switched off, library deselected): put its original back.
                 Activity.Info(_logger, "{Item} is no longer included, restoring its original poster", item.Name);
@@ -144,7 +221,6 @@ public sealed class PosterProcessor : IDisposable
         finally
         {
             _gate.Release();
-            _busy.TryRemove(item.Id, out _);
         }
     }
 
@@ -162,7 +238,7 @@ public sealed class PosterProcessor : IDisposable
             return null;
         }
 
-        var state = LoadState(item.Id);
+        var state = LoadState(item.Id, item);
         var original = state is not null && state.Ours.Contains(Hash(current.Value.Bytes)) && File.Exists(OriginalFile(item.Id, state))
             ? File.ReadAllBytes(OriginalFile(item.Id, state))
             : current.Value.Bytes;
@@ -213,9 +289,16 @@ public sealed class PosterProcessor : IDisposable
         foreach (var file in Directory.GetFiles(stateDir, "*.json"))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var id = Guid.Parse(Path.GetFileNameWithoutExtension(file));
-            var state = JsonSerializer.Deserialize<PosterState>(await File.ReadAllTextAsync(file, cancellationToken).ConfigureAwait(false))!;
+            if (!Guid.TryParse(Path.GetFileNameWithoutExtension(file), out var id))
+            {
+                continue;
+            }
+
             var item = _libraryManager.GetItemById(id);
+            if (LoadState(id, item) is not { } state)
+            {
+                continue;
+            }
 
             try
             {
@@ -238,11 +321,11 @@ public sealed class PosterProcessor : IDisposable
         return restored;
     }
 
-    private async Task ProcessCoreAsync(BaseItem item, CancellationToken cancellationToken)
+    private async Task ProcessCoreAsync(BaseItem item, ConcurrentDictionary<Guid, List<Badge>>? episodeCache, CancellationToken cancellationToken)
     {
         var config = Config;
-        var badges = GetBadges(item, config);
-        var state = LoadState(item.Id);
+        var badges = GetBadges(item, config, episodeCache);
+        var state = LoadState(item.Id, item);
         var (lastOutputPath, lastOutputHash) = (state?.OutputPath, state?.OutputHash);
         var info = item.GetImageInfo(ImageType.Primary, 0);
 
@@ -428,7 +511,7 @@ public sealed class PosterProcessor : IDisposable
         }
     }
 
-    private List<Badge> GetBadges(BaseItem item, PluginConfiguration config)
+    private List<Badge> GetBadges(BaseItem item, PluginConfiguration config, ConcurrentDictionary<Guid, List<Badge>>? episodeCache = null)
     {
         List<Badge> technical;
         IReadOnlyList<BaseItem> episodes = [];
@@ -441,7 +524,9 @@ public sealed class PosterProcessor : IDisposable
                 Recursive = true,
                 IsVirtualItem = false
             });
-            technical = BadgeDetector.MostCommon(episodes.Select(e => (IReadOnlyList<Badge>)Technical(e, config)).ToList());
+            technical = BadgeDetector.MostCommon(episodes
+                .Select(e => (IReadOnlyList<Badge>)(episodeCache is null ? Technical(e, config) : episodeCache.GetOrAdd(e.Id, _ => Technical(e, config))))
+                .ToList());
         }
         else if (item is BoxSet boxSet)
         {
@@ -450,13 +535,13 @@ public sealed class PosterProcessor : IDisposable
         }
         else
         {
-            technical = Technical(item, config);
+            technical = item is Episode && episodeCache is not null ? episodeCache.GetOrAdd(item.Id, _ => Technical(item, config)) : Technical(item, config);
         }
 
         // Status and edition go first: they say the most at a glance.
         var lead = new List<Badge>();
         if (item is Series series
-            && BadgeDetector.Status(series.Status, LastAired(episodes), config.ShowStatus ? UpcomingSeason(series) : null, DateTime.UtcNow, NewEpisodeDays) is { } status)
+            && BadgeDetector.Status(series.Status, LastAired(episodes), config.ShowStatus ? UpcomingSeason(series) : null, DateTime.UtcNow, config.NewEpisodeDays) is { } status)
         {
             lead.Add(status);
         }
@@ -468,8 +553,10 @@ public sealed class PosterProcessor : IDisposable
 
         // Seasons rarely have their own rating: use the average of their episodes when chosen, otherwise the series rating.
         var (community, critic) = (item.CommunityRating, item.CriticRating);
-        if (item is Season season && community is null && critic is null)
+        // A rating of 0 means none, as with episodes.
+        if (item is Season season && !(community > 0) && !(critic > 0))
         {
+            (community, critic) = (null, null);
             if (config.SeasonRatingFromEpisodes)
             {
                 (community, critic) = (Average(episodes.Select(e => e.CommunityRating)), Average(episodes.Select(e => e.CriticRating)));
@@ -512,7 +599,7 @@ public sealed class PosterProcessor : IDisposable
                 IncludeItemTypes = [BaseItemKind.Episode],
                 Recursive = true,
                 MinPremiereDate = now,
-                MaxPremiereDate = now.AddDays(NewEpisodeDays)
+                MaxPremiereDate = now.AddDays(UpcomingDays)
             })
             .OfType<Episode>()
             .Where(e => e.IndexNumber == 1 && e.ParentIndexNumber > 0)
@@ -561,16 +648,61 @@ public sealed class PosterProcessor : IDisposable
 
     private static string StateFile(Guid id) => Path.Combine(DataDir, "state", id.ToString("N") + ".json");
 
-    private static PosterState? LoadState(Guid id)
+    private PosterState? LoadState(Guid id, BaseItem? item)
     {
         var file = StateFile(id);
-        return File.Exists(file) ? JsonSerializer.Deserialize<PosterState>(File.ReadAllText(file)) : null;
+        if (!File.Exists(file))
+        {
+            return null;
+        }
+
+        if (TryRead(file) is { } state)
+        {
+            return state;
+        }
+
+        // Damaged, from a crash in an older version that wrote state in place. Without a backup there is nothing to go on.
+        var backup = Directory.Exists(Path.Combine(DataDir, "originals"))
+            ? Directory.GetFiles(Path.Combine(DataDir, "originals"), id.ToString("N") + ".*").FirstOrDefault()
+            : null;
+        if (backup is null)
+        {
+            Activity.Log(_logger, LogLevel.Warning, null, "State of {Item} was damaged and had no backup, starting over", item?.Name ?? id.ToString());
+            File.Delete(file);
+            return null;
+        }
+
+        // The backup is the original, so whatever is on the poster now is taken to be ours: better than badging a badged poster.
+        state = new PosterState { OriginalHash = Hash(File.ReadAllBytes(backup)), OriginalExtension = Path.GetExtension(backup) };
+        if (item is not null && ReadPrimary(item) is { } current)
+        {
+            state.Ours.Add(Hash(current.Bytes));
+        }
+
+        Activity.Log(_logger, LogLevel.Warning, null, "State of {Item} was damaged, rebuilt it from the backup", item?.Name ?? id.ToString());
+        SaveState(id, state);
+        return state;
     }
 
+    private static PosterState? TryRead(string file)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<PosterState>(File.ReadAllText(file));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    // Written next to the real file and moved over it, so a crash never leaves half a file.
     private static void SaveState(Guid id, PosterState state)
     {
         Directory.CreateDirectory(Path.Combine(DataDir, "state"));
-        File.WriteAllText(StateFile(id), JsonSerializer.Serialize(state));
+        var temp = StateFile(id) + ".tmp";
+        File.WriteAllText(temp, JsonSerializer.Serialize(state));
+        File.Move(temp, StateFile(id), true);
     }
 
     /// <inheritdoc />

@@ -107,8 +107,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether to show the edition (Director's Cut, Extended, IMAX) of movies.</summary>
     public bool ShowEdition { get; set; }
 
-    /// <summary>Gets or sets a value indicating whether series show NEW EPISODE (aired in the last 7 days), RETURNING or ENDED.</summary>
+    /// <summary>Gets or sets a value indicating whether series show NEW EPISODE (aired in the last <see cref="NewEpisodeDays"/> days), SEASON n SOON, RETURNING or ENDED.</summary>
     public bool ShowStatus { get; set; }
+
+    /// <summary>Gets or sets how many days after airing an episode puts NEW EPISODE on its series.</summary>
+    public int NewEpisodeDays { get; set; } = 7;
 
     /// <summary>Gets or sets a value indicating whether to show a badge for audio or subtitles in <see cref="LanguageCodes"/>.</summary>
     public bool ShowLanguage { get; set; }
@@ -148,6 +151,9 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Gets or sets the included library ids. Empty means all libraries.</summary>
     public string[] Libraries { get; set; } = [];
+
+    /// <summary>Gets or sets the ids of items that keep their original poster.</summary>
+    public string[] ExcludedItems { get; set; } = [];
 
     /// <summary>Gets or sets how many posters are processed at the same time.</summary>
     public int MaxConcurrency { get; set; } = 2;

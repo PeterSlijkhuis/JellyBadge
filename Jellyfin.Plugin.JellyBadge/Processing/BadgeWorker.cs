@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -57,6 +58,7 @@ public sealed class BadgeWorker : BackgroundService
     {
         _libraryManager.ItemAdded += OnItemChanged;
         _libraryManager.ItemUpdated += OnItemChanged;
+        _libraryManager.ItemRemoved += OnItemRemoved;
         _taskManager.TaskCompleted += OnTaskCompleted;
         Plugin.Instance!.ConfigurationChanged += OnConfigurationChanged;
         return base.StartAsync(cancellationToken);
@@ -67,6 +69,7 @@ public sealed class BadgeWorker : BackgroundService
     {
         _libraryManager.ItemAdded -= OnItemChanged;
         _libraryManager.ItemUpdated -= OnItemChanged;
+        _libraryManager.ItemRemoved -= OnItemRemoved;
         _taskManager.TaskCompleted -= OnTaskCompleted;
         Plugin.Instance!.ConfigurationChanged -= OnConfigurationChanged;
         _queue.Writer.TryComplete();
@@ -97,10 +100,15 @@ public sealed class BadgeWorker : BackgroundService
         }
     }
 
-    // Switching JellyBadge off in the settings puts the originals back.
+    // Saving the settings redraws what changed; switching JellyBadge off puts the originals back.
     private void OnConfigurationChanged(object? sender, BasePluginConfiguration config)
     {
-        if (config is PluginConfiguration { Enabled: false })
+        if (config is PluginConfiguration { Enabled: true })
+        {
+            Activity.Info(_logger, "Settings saved, checking all posters");
+            _taskManager.QueueScheduledTask<ApplyBadgesTask>();
+        }
+        else if (config is PluginConfiguration { Enabled: false })
         {
             Activity.Info(_logger, "JellyBadge was switched off, restoring original posters");
             _ = Task.Run(async () =>
@@ -125,6 +133,19 @@ public sealed class BadgeWorker : BackgroundService
         {
             Activity.Info(_logger, "{Task} finished, checking all posters", e.Task.Name);
             _taskManager.QueueScheduledTask<ApplyBadgesTask>();
+        }
+    }
+
+    // Its backup and state are of no use once the item is gone (moved files come back with a new id).
+    private void OnItemRemoved(object? sender, ItemChangeEventArgs e)
+    {
+        try
+        {
+            _processor.Forget(e.Item.Id);
+        }
+        catch (IOException ex)
+        {
+            Activity.Log(_logger, LogLevel.Warning, ex, "Could not clean up after {Item}", e.Item.Name);
         }
     }
 

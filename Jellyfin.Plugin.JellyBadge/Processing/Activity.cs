@@ -63,6 +63,17 @@ public static partial class Activity
         }
     }
 
+    /// <summary>
+    /// Empties the activity file.
+    /// </summary>
+    public static void Clear()
+    {
+        lock (_lock)
+        {
+            File.Delete(FilePath);
+        }
+    }
+
     private static void Append(string line)
     {
         try
