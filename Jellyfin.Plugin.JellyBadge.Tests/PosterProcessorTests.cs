@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -167,7 +168,7 @@ public sealed class PosterProcessorTests : IDisposable
         var episode = new Episode { Id = Guid.NewGuid() };
         _library.Setup(l => l.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([episode]);
 
-        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [new Badge(BadgeKind.Resolution, "4K")] });
+        await _processor.ProcessAsync(_item, CancellationToken.None, Sweep(episode, [new Badge(BadgeKind.Resolution, "4K")]));
 
         Assert.Equal(2, _saves);
     }
@@ -295,16 +296,45 @@ public sealed class PosterProcessorTests : IDisposable
     }
 
     [Fact]
+    public async Task SweepSkipsAnUnchangedSeriesWithoutAskingForItsEpisodes()
+    {
+        var episode = new Episode { Id = Guid.NewGuid() };
+        _library.Setup(l => l.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([episode]);
+        await _processor.ProcessAsync(_item, CancellationToken.None, Sweep(episode, [new Badge(BadgeKind.Resolution, "4K")]));
+        _library.Invocations.Clear();
+
+        await _processor.ProcessAsync(_item, CancellationToken.None, Sweep(episode, [new Badge(BadgeKind.Resolution, "4K")]));
+
+        _library.Verify(l => l.GetItemList(It.IsAny<InternalItemsQuery>()), Times.Never);
+        Assert.Equal(1, _saves);
+    }
+
+    [Fact]
+    public async Task OffersTheBadgedPosterToScansUntilTheOriginalIsReplaced()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        Assert.Equal(CurrentPath(), _processor.BadgedPoster(_item));
+
+        Plugin.Instance!.Configuration.Enabled = false;
+        Assert.Null(_processor.BadgedPoster(_item));
+        Plugin.Instance.Configuration.Enabled = true;
+
+        // A new poster next to the media: Jellyfin should switch to it, and it gets badged as the new original.
+        WritePoster(_mediaPoster, SKColors.OrangeRed);
+        Assert.Null(_processor.BadgedPoster(_item));
+    }
+
+    [Fact]
     public async Task KeepsBadgesWhileMediaInfoIsMissing()
     {
         var episode = new Episode { Id = Guid.NewGuid() };
         _library.Setup(l => l.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([episode]);
-        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [new Badge(BadgeKind.Resolution, "4K")] });
+        await _processor.ProcessAsync(_item, CancellationToken.None, Sweep(episode, [new Badge(BadgeKind.Resolution, "4K")]));
         var badged = Bytes(CurrentPath());
 
         // Mid-scan: the episode has no media info and the rating is not back yet.
         _item.CommunityRating = null;
-        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [] });
+        await _processor.ProcessAsync(_item, CancellationToken.None, Sweep(episode, []));
 
         Assert.Equal(1, _saves);
         Assert.Equal(badged, Bytes(CurrentPath()));
@@ -330,12 +360,12 @@ public sealed class PosterProcessorTests : IDisposable
     {
         var episode = new Episode { Id = Guid.NewGuid() };
         _library.Setup(l => l.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([episode]);
-        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [new Badge(BadgeKind.Resolution, "4K")] });
+        await _processor.ProcessAsync(_item, CancellationToken.None, Sweep(episode, [new Badge(BadgeKind.Resolution, "4K")]));
         var badged = CurrentPath();
 
         // A scan swaps in the original and has the episode's media info half read.
         SetPoster(_item, _mediaPoster);
-        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [] });
+        await _processor.ProcessAsync(_item, CancellationToken.None, Sweep(episode, []));
 
         Assert.Equal(badged, CurrentPath());
         Assert.Equal(1, _saves);
@@ -390,5 +420,13 @@ public sealed class PosterProcessorTests : IDisposable
         using var data = SKImage.FromBitmap(bitmap).Encode(SKEncodedImageFormat.Jpeg, 90);
         File.WriteAllBytes(path, data.ToArray());
         return path;
+    }
+
+    private SweepCache Sweep(Episode episode, List<Badge> badges)
+    {
+        episode.SeriesId = _item.Id;
+        var sweep = new SweepCache([episode]);
+        sweep.Episodes[episode.Id] = badges;
+        return sweep;
     }
 }

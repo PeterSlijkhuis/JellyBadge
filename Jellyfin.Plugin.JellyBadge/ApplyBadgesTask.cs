@@ -66,7 +66,7 @@ public class ApplyBadgesTask : IScheduledTask
 
         var done = 0;
         var failed = 0;
-        var episodeCache = new ConcurrentDictionary<Guid, List<Badge>>();
+        var sweep = new SweepCache(items);
         await Parallel.ForEachAsync(
             items,
             new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, config.MaxConcurrency), CancellationToken = cancellationToken },
@@ -74,7 +74,7 @@ public class ApplyBadgesTask : IScheduledTask
             {
                 try
                 {
-                    await _processor.ProcessAsync(item, ct, episodeCache).ConfigureAwait(false);
+                    await _processor.ProcessAsync(item, ct, sweep).ConfigureAwait(false);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {

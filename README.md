@@ -172,13 +172,13 @@ Kometa is a separate script you run on a schedule, built around Plex. JellyBadge
 <details>
 <summary><b>How does JellyBadge keep badges in place?</b></summary>
 
-Jellyfin's library scan and metadata refresh often point a poster back at the `poster.jpg` next to your media. The badged poster is still there, Jellyfin just stops showing it. JellyBadge watches for this in four ways:
+On every library scan and metadata refresh, Jellyfin looks for a poster next to your media (`poster.jpg`, `folder.jpg`) and shows that one. JellyBadge hands Jellyfin the badged poster first, so a scan keeps the badges and your media folder stays untouched. If a poster still gets swapped, for example by another plugin, these checks put the badges back:
 
 | What | When | What it does |
 | --- | --- | --- |
 | **Fast lane** | Every time Jellyfin saves an item | If the poster was swapped back to the original, points it at the badged one again. Nothing is redrawn, so the badge is back within a second. |
 | **Item check** | Right after the fast lane | Works out the badges again and redraws only if they changed, for example after a scan found a 4K file or the rating changed. |
-| **Poster badges task** | After every other scheduled task, after you save the settings, and once a day | Checks every poster. Items that did not change since the last run are skipped, so a run over a fully badged library takes seconds. |
+| **Poster badges task** | After a library scan, after you save the settings, and once a day | Checks every poster. Items that did not change since the last run are skipped, so a run over a fully badged library takes seconds. |
 | **Safety check** | 30 seconds after the server starts, then every 5 minutes | Compares each badged poster with what JellyBadge left behind and fixes anything that was swapped or overwritten. |
 
 A few rules decide what happens next:
@@ -188,7 +188,7 @@ A few rules decide what happens next:
 - **While a scan is still reading a file's media info**, the badges stay as they are instead of being dropped.
 - **Turning JellyBadge off**, disabling it in the plugin list or uninstalling it puts every original poster back.
 
-The **Activity** section shows what was badged, and once a minute at most, how many posters a scan swapped back.
+The **Activity** section shows what was badged, and once a minute at most, how many swapped posters were put back.
 </details>
 
 <details>
