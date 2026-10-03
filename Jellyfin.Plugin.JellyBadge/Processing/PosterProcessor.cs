@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -46,6 +47,11 @@ public sealed class PosterProcessor : IDisposable
     private readonly ConcurrentDictionary<Guid, byte> _busy = new();
     private readonly ConcurrentDictionary<Guid, byte> _again = new();
     private readonly ConcurrentDictionary<Guid, (string Path, DateTime Modified)> _written = new();
+
+    // State files kept in memory after the first read, so repeat runs and the 5 minute check touch no disk for them.
+    private readonly ConcurrentDictionary<Guid, PosterState> _states = new();
+    private bool _allLoaded;
+    private DateTime _lastCleanup;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PosterProcessor"/> class.
@@ -165,22 +171,28 @@ public sealed class PosterProcessor : IDisposable
         if (LoadState(id, null) is { } state)
         {
             File.Delete(OriginalFile(id, state));
-            File.Delete(StateFile(id));
+            DeleteState(id);
             _written.TryRemove(id, out _);
         }
     }
 
     /// <summary>
     /// Forgets every item that is no longer in the library, for removals that happened while the server was down.
+    /// Removals while it runs are handled as they happen, so this runs at most once a day.
     /// </summary>
     /// <returns>How many were forgotten.</returns>
     public int ForgetRemoved()
     {
-        var stateDir = Path.Combine(DataDir, "state");
-        var removed = 0;
-        foreach (var file in Directory.Exists(stateDir) ? Directory.GetFiles(stateDir, "*.json") : [])
+        if (DateTime.UtcNow - _lastCleanup < TimeSpan.FromHours(24))
         {
-            if (Guid.TryParse(Path.GetFileNameWithoutExtension(file), out var id) && _libraryManager.GetItemById(id) is null)
+            return 0;
+        }
+
+        _lastCleanup = DateTime.UtcNow;
+        var removed = 0;
+        foreach (var (id, _) in AllStates())
+        {
+            if (_libraryManager.GetItemById(id) is null)
             {
                 Forget(id);
                 removed++;
@@ -196,10 +208,7 @@ public sealed class PosterProcessor : IDisposable
     /// <returns>The count.</returns>
     public int CountBadged()
     {
-        var stateDir = Path.Combine(DataDir, "state");
-        return Directory.Exists(stateDir)
-            ? Directory.GetFiles(stateDir, "*.json").Count(f => TryRead(f) is { } s && s.OutputHash.Length > 0 && s.OutputHash != s.OriginalHash)
-            : 0;
+        return AllStates().Count(s => s.Value.OutputHash.Length > 0 && s.Value.OutputHash != s.Value.OriginalHash);
     }
 
     /// <summary>
@@ -208,12 +217,10 @@ public sealed class PosterProcessor : IDisposable
     /// <returns>The items to check again.</returns>
     public List<BaseItem> FindChanged()
     {
-        var stateDir = Path.Combine(DataDir, "state");
         var changed = new List<BaseItem>();
-        foreach (var file in Directory.Exists(stateDir) ? Directory.GetFiles(stateDir, "*.json") : [])
+        foreach (var (id, state) in AllStates())
         {
-            if (!Guid.TryParse(Path.GetFileNameWithoutExtension(file), out var id) || _libraryManager.GetItemById(id) is not { } item
-                || TryRead(file) is not { } state || state.OutputHash.Length == 0)
+            if (state.OutputHash.Length == 0 || _libraryManager.GetItemById(id) is not { } item)
             {
                 continue;
             }
@@ -297,7 +304,7 @@ public sealed class PosterProcessor : IDisposable
                 Activity.Info(_logger, "{Item} is no longer included, restoring its original poster", item.Name);
                 await RestoreAsync(item, state, cancellationToken).ConfigureAwait(false);
                 File.Delete(OriginalFile(item.Id, state));
-                File.Delete(StateFile(item.Id));
+                DeleteState(item.Id);
             }
         }
         finally
@@ -390,7 +397,7 @@ public sealed class PosterProcessor : IDisposable
                 }
 
                 File.Delete(OriginalFile(id, state));
-                File.Delete(file);
+                DeleteState(id);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -414,6 +421,14 @@ public sealed class PosterProcessor : IDisposable
             await TryRepointAsync(item, state, cancellationToken).ConfigureAwait(false);
         }
 
+        // Nothing about the item, its episodes or the settings changed since last time, and the poster is still ours:
+        // done, without reading media info or images. This is what keeps repeat runs fast.
+        var skipKey = SkipKey(item, config);
+        if (state is not null && state.SkipKey == skipKey && ImageIsAsLeft(item, state))
+        {
+            return;
+        }
+
         var badges = GetBadges(item, config, episodeCache, out var mediaInfoMissing);
 
         // Media info is briefly gone while Jellyfin scans a file again. Drawing now would drop the quality badges,
@@ -431,10 +446,10 @@ public sealed class PosterProcessor : IDisposable
         // Done before: same image file as we left it and same badges and settings. Skip without reading the image.
         // The file's own timestamp is checked too, because other tools (Radarr, Sonarr, metadata plugins) can rewrite
         // a poster on disk without Jellyfin noticing.
-        if (state is not null && info is not null && info.Path == state.OutputPath && info.DateModified == state.OutputModified
-            && File.Exists(info.Path) && File.GetLastWriteTimeUtc(info.Path) == state.OutputModified
-            && InputHash(state, badges, config) == state.InputHash)
+        if (state is not null && ImageIsAsLeft(item, state) && InputHash(state, badges, config) == state.InputHash)
         {
+            state.SkipKey = skipKey;
+            SaveState(item.Id, state);
             return;
         }
 
@@ -553,12 +568,52 @@ public sealed class PosterProcessor : IDisposable
             _hashOptions)));
 
     // Remember which file and timestamp we left, so later runs can skip this item without reading the image.
-    private static void MarkDone(BaseItem item, PosterState state)
+    private void MarkDone(BaseItem item, PosterState state)
     {
         var info = item.GetImageInfo(ImageType.Primary, 0);
         state.OutputPath = info?.Path ?? string.Empty;
         state.OutputModified = info?.DateModified ?? default;
+
+        // Taken after our own save, which counts as a change of the item too.
+        state.SkipKey = SkipKey(item, Config);
         SaveState(item.Id, state);
+    }
+
+    private static bool ImageIsAsLeft(BaseItem item, PosterState state)
+    {
+        var info = item.GetImageInfo(ImageType.Primary, 0);
+        return info is not null && info.Path == state.OutputPath && info.DateModified == state.OutputModified
+            && File.Exists(info.Path) && File.GetLastWriteTimeUtc(info.Path) == state.OutputModified;
+    }
+
+    private static PluginConfiguration? _keyedConfig;
+    private static string _configKey = string.Empty;
+
+    // Everything a badge is made from, cheaply: when the item, its file or its episodes were last saved, the settings,
+    // and for series with status badges the date, so NEW EPISODE and SEASON SOON follow the calendar.
+    private string SkipKey(BaseItem item, PluginConfiguration config)
+    {
+        if (!ReferenceEquals(config, _keyedConfig))
+        {
+            _configKey = Hash(JsonSerializer.SerializeToUtf8Bytes(config));
+            _keyedConfig = config;
+        }
+
+        IEnumerable<BaseItem> children = item switch
+        {
+            Series or Season => _libraryManager.GetItemList(new InternalItemsQuery
+            {
+                AncestorIds = [item.Id],
+                IncludeItemTypes = [BaseItemKind.Episode],
+                Recursive = true,
+                IsVirtualItem = false
+            }),
+            BoxSet boxSet => boxSet.GetLinkedChildren(),
+            _ => []
+        };
+        var (count, latest) = children.Aggregate((Count: 0, Latest: 0L), (a, c) => (a.Count + 1, Math.Max(a.Latest, Math.Max(c.DateLastSaved.Ticks, c.DateModified.Ticks))));
+        var day = item is Series && config.ShowStatus ? DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture) : string.Empty;
+        return string.Create(CultureInfo.InvariantCulture, $"{RenderVersion}|{_configKey}|{item.DateLastSaved.Ticks}|{item.DateModified.Ticks}|{count}|{latest}|{day}");
     }
 
     private async Task<bool> RestoreAsync(BaseItem item, PosterState state, CancellationToken cancellationToken)
@@ -759,6 +814,11 @@ public sealed class PosterProcessor : IDisposable
 
     private PosterState? LoadState(Guid id, BaseItem? item)
     {
+        if (_states.TryGetValue(id, out var known))
+        {
+            return known;
+        }
+
         var file = StateFile(id);
         if (!File.Exists(file))
         {
@@ -767,7 +827,7 @@ public sealed class PosterProcessor : IDisposable
 
         if (TryRead(file) is { } state)
         {
-            return state;
+            return _states.GetOrAdd(id, state);
         }
 
         // Damaged, from a crash in an older version that wrote state in place. Without a backup there is nothing to go on.
@@ -805,9 +865,36 @@ public sealed class PosterProcessor : IDisposable
         }
     }
 
-    // Written next to the real file and moved over it, so a crash never leaves half a file.
-    private static void SaveState(Guid id, PosterState state)
+    // Every state file, read from disk once. Damaged ones are left for LoadState, which can repair them with the item at hand.
+    private List<KeyValuePair<Guid, PosterState>> AllStates()
     {
+        if (!_allLoaded)
+        {
+            var stateDir = Path.Combine(DataDir, "state");
+            foreach (var file in Directory.Exists(stateDir) ? Directory.GetFiles(stateDir, "*.json") : [])
+            {
+                if (Guid.TryParse(Path.GetFileNameWithoutExtension(file), out var id) && !_states.ContainsKey(id) && TryRead(file) is { } state)
+                {
+                    _states.TryAdd(id, state);
+                }
+            }
+
+            _allLoaded = true;
+        }
+
+        return _states.ToList();
+    }
+
+    private void DeleteState(Guid id)
+    {
+        _states.TryRemove(id, out _);
+        File.Delete(StateFile(id));
+    }
+
+    // Written next to the real file and moved over it, so a crash never leaves half a file.
+    private void SaveState(Guid id, PosterState state)
+    {
+        _states[id] = state;
         Directory.CreateDirectory(Path.Combine(DataDir, "state"));
         var temp = StateFile(id) + ".tmp";
         File.WriteAllText(temp, JsonSerializer.Serialize(state));
@@ -836,5 +923,8 @@ public sealed class PosterProcessor : IDisposable
         // Every image we ever wrote from this original. Matching any of them means "ours", so an
         // interrupted save can never make us back up a badged poster as if it were the original.
         public HashSet<string> Ours { get; set; } = [];
+
+        // See SkipKey: empty until the first full check, so older state files get one full check after updating.
+        public string SkipKey { get; set; } = string.Empty;
     }
 }

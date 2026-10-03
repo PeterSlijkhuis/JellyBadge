@@ -171,12 +171,13 @@ public sealed class BadgeWorker : BackgroundService
             while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
                 await RestoreIfDisabledAsync(stoppingToken).ConfigureAwait(false);
-                if (Interlocked.Exchange(ref _putBack, 0) is > 0 and var count)
+                // One line a minute at most, so a long scan does not flood the Activity list.
+                if (++ticks % 12 == 0 && Interlocked.Exchange(ref _putBack, 0) is > 0 and var count)
                 {
                     Activity.Info(_logger, "A scan or refresh put the original back on {Count} posters, badges are back", count);
                 }
 
-                if (++ticks % 60 == 0)
+                if (ticks % 60 == 0)
                 {
                     CheckBadgesStayed();
                 }
