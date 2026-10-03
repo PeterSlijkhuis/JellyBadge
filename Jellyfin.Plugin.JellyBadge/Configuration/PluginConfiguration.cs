@@ -90,6 +90,18 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether to show the critic rating badge.</summary>
     public bool ShowCriticRating { get; set; } = true;
 
+    /// <summary>Gets or sets a value indicating whether to show the edition (Director's Cut, Extended, IMAX) of movies.</summary>
+    public bool ShowEdition { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether series show NEW EPISODE, RETURNING or ENDED.</summary>
+    public bool ShowStatus { get; set; }
+
+    /// <summary>Gets or sets a value indicating whether to show a badge for audio or subtitles in <see cref="LanguageCodes"/>.</summary>
+    public bool ShowLanguage { get; set; }
+
+    /// <summary>Gets or sets the codes of the language for the language badge, two letter first (nl, dut, nld).</summary>
+    public string[] LanguageCodes { get; set; } = [];
+
     /// <summary>Gets or sets a value indicating whether everyday quality (720p, SD, stereo, mono, lossy audio, older codecs) is left off.</summary>
     public bool PremiumOnly { get; set; }
 

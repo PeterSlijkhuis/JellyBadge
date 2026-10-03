@@ -38,7 +38,16 @@ public enum BadgeKind
     VideoCodec,
 
     /// <summary>Remux, from the file name. Drawn after the codec.</summary>
-    Remux
+    Remux,
+
+    /// <summary>Director's Cut, Extended, IMAX and so on, from the file name.</summary>
+    Edition,
+
+    /// <summary>New episode, returning, ended. Series only.</summary>
+    Status,
+
+    /// <summary>Audio or subtitles in a chosen language.</summary>
+    Language
 }
 
 /// <summary>
@@ -54,7 +63,21 @@ public sealed record Badge(BadgeKind Kind, string Text);
 public static partial class BadgeDetector
 {
     // The order technical badges are drawn in.
-    private static readonly BadgeKind[] TechnicalKinds = [BadgeKind.Resolution, BadgeKind.DynamicRange, BadgeKind.VideoCodec, BadgeKind.Remux, BadgeKind.AudioFormat, BadgeKind.AudioChannels];
+    private static readonly BadgeKind[] TechnicalKinds = [BadgeKind.Resolution, BadgeKind.DynamicRange, BadgeKind.VideoCodec, BadgeKind.Remux, BadgeKind.AudioFormat, BadgeKind.AudioChannels, BadgeKind.Language];
+
+    // Known editions in release names, checked in this order. Separators are spaces by then.
+    private static readonly (Regex Pattern, string Text)[] Editions =
+    [
+        (new(@"\bdirector'?s cut\b", RegexOptions.IgnoreCase), "DIRECTOR'S CUT"),
+        (new(@"\bfinal cut\b", RegexOptions.IgnoreCase), "FINAL CUT"),
+        (new(@"\bextended\b", RegexOptions.IgnoreCase), "EXTENDED"),
+        (new(@"\bunrated\b", RegexOptions.IgnoreCase), "UNRATED"),
+        (new(@"\buncut\b", RegexOptions.IgnoreCase), "UNCUT"),
+        (new(@"\bimax\b", RegexOptions.IgnoreCase), "IMAX"),
+        (new(@"\bcriterion\b", RegexOptions.IgnoreCase), "CRITERION"),
+        (new(@"\bremastered\b", RegexOptions.IgnoreCase), "REMASTERED"),
+        (new(@"\bspecial edition\b", RegexOptions.IgnoreCase), "SPECIAL EDITION")
+    ];
 
     /// <summary>
     /// Technical badges for the best of several versions of one item.
@@ -148,6 +171,87 @@ public static partial class BadgeDetector
         return result;
     }
 
+    /// <summary>
+    /// The edition from a file or folder name: Radarr's {edition-...} tag first, then known words like Extended or IMAX.
+    /// </summary>
+    /// <param name="path">The media file path.</param>
+    /// <returns>The edition badge, or null.</returns>
+    public static Badge? Edition(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return null;
+        }
+
+        foreach (var name in new[] { Path.GetFileNameWithoutExtension(path), Path.GetFileName(Path.GetDirectoryName(path)) ?? string.Empty })
+        {
+            var tag = EditionTag().Match(name);
+            if (tag.Success)
+            {
+                var text = tag.Groups[1].Value.Trim().ToUpperInvariant();
+                return new Badge(BadgeKind.Edition, text.Length > 20 ? text[..20].TrimEnd() : text);
+            }
+
+            var words = Separators().Replace(name, " ");
+            foreach (var (pattern, label) in Editions)
+            {
+                if (pattern.IsMatch(words))
+                {
+                    return new Badge(BadgeKind.Edition, label);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The status of a series: a new episode added lately, else returning or ended.
+    /// </summary>
+    /// <param name="status">The series status.</param>
+    /// <param name="lastAdded">When the newest episode was added to the library.</param>
+    /// <param name="now">The current time.</param>
+    /// <param name="newDays">How many days an episode counts as new.</param>
+    /// <returns>The status badge, or null.</returns>
+    public static Badge? Status(SeriesStatus? status, DateTime? lastAdded, DateTime now, int newDays)
+    {
+        if (lastAdded is not null && now - lastAdded.Value < TimeSpan.FromDays(newDays))
+        {
+            return new Badge(BadgeKind.Status, "NEW EPISODE");
+        }
+
+        return status switch
+        {
+            SeriesStatus.Continuing => new Badge(BadgeKind.Status, "RETURNING"),
+            SeriesStatus.Ended => new Badge(BadgeKind.Status, "ENDED"),
+            _ => null
+        };
+    }
+
+    /// <summary>
+    /// A language badge: "NL" when there is audio in the language, "NL SUBS" when only subtitles.
+    /// </summary>
+    /// <param name="streams">All streams of the item, external subtitles included.</param>
+    /// <param name="codes">The language's codes, two letter first (nl, dut, nld).</param>
+    /// <returns>The language badge, or null.</returns>
+    public static Badge? Language(IEnumerable<MediaStream> streams, IReadOnlyList<string> codes)
+    {
+        if (codes.Count == 0)
+        {
+            return null;
+        }
+
+        var types = streams
+            .Where(s => s.Language is not null && codes.Contains(s.Language, StringComparer.OrdinalIgnoreCase))
+            .Select(s => s.Type)
+            .ToList();
+        var label = codes[0].ToUpperInvariant();
+
+        return types.Contains(MediaStreamType.Audio) ? new Badge(BadgeKind.Language, label)
+            : types.Contains(MediaStreamType.Subtitle) ? new Badge(BadgeKind.Language, label + " SUBS")
+            : null;
+    }
+
     private static VersionScore Score(IReadOnlyList<MediaStream> streams, string? path)
     {
         var video = streams.Where(s => s.Type == MediaStreamType.Video).MaxBy(s => (s.Width ?? 0) * (s.Height ?? 0));
@@ -196,6 +300,12 @@ public static partial class BadgeDetector
     // Release names say "Remux" (Movie.2019.2160p.UHD.BluRay.REMUX.mkv), in the file or its folder; the streams alone cannot tell.
     private static bool IsRemux(string? path)
         => path is not null && (RemuxWord().IsMatch(Path.GetFileName(path)) || RemuxWord().IsMatch(Path.GetFileName(Path.GetDirectoryName(path)) ?? string.Empty));
+
+    [GeneratedRegex(@"\{edition-([^}]+)\}", RegexOptions.IgnoreCase)]
+    private static partial Regex EditionTag();
+
+    [GeneratedRegex(@"[._\-\[\]()]+")]
+    private static partial Regex Separators();
 
     [GeneratedRegex(@"(^|[^a-z])remux([^a-z]|$)", RegexOptions.IgnoreCase)]
     private static partial Regex RemuxWord();

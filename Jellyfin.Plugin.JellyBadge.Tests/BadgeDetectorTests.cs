@@ -64,6 +64,42 @@ public class BadgeDetectorTests
     }
 
     [Theory]
+    [InlineData("/movies/Blade Runner (1982) {edition-Final Cut}/Blade Runner (1982) {edition-Final Cut}.mkv", "FINAL CUT")]
+    [InlineData("/movies/Aliens (1986)/Aliens.1986.Directors.Cut.2160p.mkv", "DIRECTOR'S CUT")]
+    [InlineData("/movies/Dune (2021)/Dune.2021.IMAX.1080p.mkv", "IMAX")]
+    [InlineData("/movies/The Hobbit Extended/movie.mkv", "EXTENDED")]
+    [InlineData("/movies/Maximum Overdrive (1986)/Maximum Overdrive.mkv", null)]
+    public void FindsEdition(string path, string? expected)
+    {
+        Assert.Equal(expected, BadgeDetector.Edition(path)?.Text);
+    }
+
+    [Theory]
+    [InlineData(SeriesStatus.Ended, 2, "NEW EPISODE")]
+    [InlineData(SeriesStatus.Continuing, 30, "RETURNING")]
+    [InlineData(SeriesStatus.Ended, 30, "ENDED")]
+    [InlineData(null, 30, null)]
+    public void SeriesStatusBadge(SeriesStatus? status, int daysSinceAdded, string? expected)
+    {
+        var now = new System.DateTime(2026, 10, 3, 0, 0, 0, System.DateTimeKind.Utc);
+        Assert.Equal(expected, BadgeDetector.Status(status, now.AddDays(-daysSinceAdded), now, 7)?.Text);
+    }
+
+    [Fact]
+    public void LanguageBadgePrefersAudioOverSubtitles()
+    {
+        string[] dutch = ["nl", "dut", "nld"];
+        var subs = new MediaStream { Type = MediaStreamType.Subtitle, Language = "dut" };
+        var audio = new MediaStream { Type = MediaStreamType.Audio, Language = "nld" };
+        var english = new MediaStream { Type = MediaStreamType.Audio, Language = "eng" };
+
+        Assert.Equal("NL SUBS", BadgeDetector.Language([english, subs], dutch)?.Text);
+        Assert.Equal("NL", BadgeDetector.Language([english, subs, audio], dutch)?.Text);
+        Assert.Null(BadgeDetector.Language([english], dutch));
+        Assert.Null(BadgeDetector.Language([subs], []));
+    }
+
+    [Theory]
     [InlineData("eac3", null, "DD+")]
     [InlineData("ac3", null, "DD")]
     [InlineData("dts", "DTS-HD HRA", "DTS")]

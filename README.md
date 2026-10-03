@@ -59,6 +59,9 @@ JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos** and **★ 
 | Remux | `REMUX` | the file or folder name, off until you switch it on |
 | Audio format | `ATMOS` `DTS:X` `TRUEHD` `DTS-HD MA` `FLAC` `PCM` `DTS` `DD+` `DD` `AAC` | the audio codec and profile |
 | Audio channels | `7.1` `5.1` `2.1` `2.0` `MONO` and others | the audio channel layout |
+| Edition | `DIRECTOR'S CUT` `EXTENDED` `IMAX` and others | Radarr's `{edition-...}` tag or the file name, movies only, off until you switch it on |
+| Show status | `NEW EPISODE` `RETURNING` `ENDED` | an episode added in the last 7 days, else the series status, off until you switch it on |
+| Language | `NL` or `NL SUBS` | audio or subtitles in the language you pick, off until you switch it on |
 | Community rating | `★ 8.4` | the item's community rating |
 | Critic rating | `✓ 93%` | the item's critic rating |
 
