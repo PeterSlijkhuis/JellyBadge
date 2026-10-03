@@ -31,7 +31,8 @@ public sealed class PosterProcessorTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "jellybadge-" + Guid.NewGuid().ToString("N"));
     private readonly Mock<IProviderManager> _providers = new();
     private readonly Mock<ILibraryManager> _library = new();
-    private readonly PosterProcessor _processor;
+    private readonly Func<PosterProcessor> _newProcessor;
+    private PosterProcessor _processor;
     private readonly Series _item;
     private readonly string _mediaPoster;
     private int _saves;
@@ -65,7 +66,8 @@ public sealed class PosterProcessorTests : IDisposable
             });
 
         var paths = Mock.Of<IServerApplicationPaths>(p => p.InternalMetadataPath == Path.Combine(_root, "metadata"));
-        _processor = new PosterProcessor(_library.Object, _providers.Object, paths, fileSystem.Object, NullLogger<PosterProcessor>.Instance);
+        _newProcessor = () => new PosterProcessor(_library.Object, _providers.Object, paths, fileSystem.Object, NullLogger<PosterProcessor>.Instance);
+        _processor = _newProcessor();
 
         _mediaPoster = WritePoster(Path.Combine(_root, "media", "poster.jpg"), SKColors.SteelBlue);
         _item = new Series { Id = Guid.NewGuid(), Name = "Harbor Watch", CommunityRating = 8.4f };
@@ -135,11 +137,39 @@ public sealed class PosterProcessorTests : IDisposable
     public async Task RebadgesWhenInputsChange()
     {
         await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        // Jellyfin stamps DateLastSaved whenever it saves an item, a new rating included.
         _item.CommunityRating = 9.1f;
+        _item.DateLastSaved = DateTime.UtcNow.AddMinutes(1);
         await _processor.ProcessAsync(_item, CancellationToken.None);
 
         Assert.Equal(2, _saves);
         Assert.Equal(Bytes(_mediaPoster), Bytes(Directory.GetFiles(Path.Combine(DataDir, "originals")).Single()));
+    }
+
+    [Fact]
+    public async Task SkipsUnchangedItemWithoutWorkingOutItsBadges()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        // Not saved by Jellyfin, so not a change: a repeat run does not even look at the rating.
+        _item.CommunityRating = 9.1f;
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(1, _saves);
+    }
+
+    [Fact]
+    public async Task ANewEpisodeMakesTheSeriesCheckAgain()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        _item.CommunityRating = 9.1f;
+        var episode = new Episode { Id = Guid.NewGuid() };
+        _library.Setup(l => l.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([episode]);
+
+        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [new Badge(BadgeKind.Resolution, "4K")] });
+
+        Assert.Equal(2, _saves);
     }
 
     [Fact]
@@ -184,7 +214,11 @@ public sealed class PosterProcessorTests : IDisposable
     {
         await _processor.ProcessAsync(_item, CancellationToken.None);
         await File.WriteAllTextAsync(Directory.GetFiles(Path.Combine(DataDir, "state")).Single(), "{\"OriginalHa", TestContext.Current.CancellationToken);
+
+        // Found damaged after a restart, then the rating changes.
+        _processor = _newProcessor();
         _item.CommunityRating = 9.1f;
+        _item.DateLastSaved = DateTime.UtcNow.AddMinutes(1);
         await _processor.ProcessAsync(_item, CancellationToken.None);
 
         Assert.Equal(2, _saves);
@@ -274,6 +308,46 @@ public sealed class PosterProcessorTests : IDisposable
 
         Assert.Equal(1, _saves);
         Assert.Equal(badged, Bytes(CurrentPath()));
+    }
+
+    [Fact]
+    public async Task PutsBadgedPosterBackRightAfterARefreshSwappedIt()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        var badged = CurrentPath();
+
+        SetPoster(_item, _mediaPoster);
+
+        Assert.True(await _processor.RepointAsync(_item, CancellationToken.None));
+        Assert.Equal(badged, CurrentPath());
+        Assert.Equal(1, _saves);
+        Assert.Empty(_processor.FindChanged());
+        Assert.False(await _processor.RepointAsync(_item, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SwappedPosterGetsItsBadgesBackEvenWhileMediaInfoIsMissing()
+    {
+        var episode = new Episode { Id = Guid.NewGuid() };
+        _library.Setup(l => l.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([episode]);
+        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [new Badge(BadgeKind.Resolution, "4K")] });
+        var badged = CurrentPath();
+
+        // A scan swaps in the original and has the episode's media info half read.
+        SetPoster(_item, _mediaPoster);
+        await _processor.ProcessAsync(_item, CancellationToken.None, new() { [episode.Id] = [] });
+
+        Assert.Equal(badged, CurrentPath());
+        Assert.Equal(1, _saves);
+    }
+
+    [Fact]
+    public async Task ARealNewPosterIsNotSwappedBack()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        SetPoster(_item, WritePoster(Path.Combine(_root, "media", "new.jpg"), SKColors.DarkOrange));
+
+        Assert.False(await _processor.RepointAsync(_item, CancellationToken.None));
     }
 
     [Fact]

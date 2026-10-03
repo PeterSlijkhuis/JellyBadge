@@ -39,6 +39,11 @@ public sealed class BadgeWorker : BackgroundService
     private readonly ILogger<BadgeWorker> _logger;
     private readonly Channel<Guid> _queue = Channel.CreateUnbounded<Guid>();
     private readonly ConcurrentDictionary<Guid, byte> _pending = new();
+
+    // Posters a scan or refresh swapped back: put back right away, not behind everything else in the queue.
+    private readonly Channel<Guid> _swapped = Channel.CreateUnbounded<Guid>();
+    private readonly ConcurrentDictionary<Guid, byte> _swappedPending = new();
+    private int _putBack;
     private bool _wasEnabled;
 
     /// <summary>
@@ -82,6 +87,7 @@ public sealed class BadgeWorker : BackgroundService
         _taskManager.TaskCompleted -= OnTaskCompleted;
         Plugin.Instance!.ConfigurationChanged -= OnConfigurationChanged;
         _queue.Writer.TryComplete();
+        _swapped.Writer.TryComplete();
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -89,6 +95,7 @@ public sealed class BadgeWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _ = WatchPluginListAsync(stoppingToken);
+        _ = PutBackSwappedAsync(stoppingToken);
 
         // ponytail: one consumer, events trickle in one at a time; the scheduled task does the bulk work in parallel.
         await foreach (var id in _queue.Reader.ReadAllAsync(stoppingToken).ConfigureAwait(false))
@@ -111,6 +118,48 @@ public sealed class BadgeWorker : BackgroundService
         }
     }
 
+    private async Task PutBackSwappedAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await foreach (var id in _swapped.Reader.ReadAllAsync(stoppingToken).ConfigureAwait(false))
+            {
+                _swappedPending.TryRemove(id, out _);
+                if (_libraryManager.GetItemById(id) is not { } item)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (await _processor.RepointAsync(item, stoppingToken).ConfigureAwait(false))
+                    {
+                        Interlocked.Increment(ref _putBack);
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    Activity.Log(_logger, LogLevel.Error, ex, "Failed to put the badges back on {Item}", item.Name);
+                }
+
+                // Then the normal check, in case the badges themselves changed (a new rating from the same refresh).
+                Enqueue(id);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down.
+        }
+    }
+
+    private void Swapped(Guid id)
+    {
+        if (_swappedPending.TryAdd(id, 0))
+        {
+            _swapped.Writer.TryWrite(id);
+        }
+    }
+
     // Jellyfin tells a plugin nothing when it is disabled in the plugin list, and after the restart the plugin
     // no longer runs. So look every few seconds and put the originals back while we still can.
     private async Task WatchPluginListAsync(CancellationToken stoppingToken)
@@ -122,7 +171,14 @@ public sealed class BadgeWorker : BackgroundService
             while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
                 await RestoreIfDisabledAsync(stoppingToken).ConfigureAwait(false);
-                if (++ticks % 60 == 0)
+                // One line a minute at most, so a long scan does not flood the Activity list.
+                if (++ticks % 12 == 0 && Interlocked.Exchange(ref _putBack, 0) is > 0 and var count)
+                {
+                    Activity.Info(_logger, "A scan or refresh put the original back on {Count} posters, badges are back", count);
+                }
+
+                // 30 seconds after startup, then every 5 minutes: a swap just before a restart is fixed right away.
+                if (ticks % 60 == 6)
                 {
                     CheckBadgesStayed();
                 }
@@ -134,8 +190,8 @@ public sealed class BadgeWorker : BackgroundService
         }
     }
 
-    // Every 5 minutes: anything that swapped a badged poster behind our back (a scan, another plugin, a tool
-    // writing to disk) gets its badges back, without waiting for the next scheduled task.
+    // Every 5 minutes, the safety net: anything that swapped a badged poster behind our back (a scan, another
+    // plugin, a tool writing to disk) gets its badges back, without waiting for the next scheduled task.
     private void CheckBadgesStayed()
     {
         if (Plugin.Instance?.Configuration.Enabled != true)
@@ -147,8 +203,7 @@ public sealed class BadgeWorker : BackgroundService
         {
             foreach (var item in _processor.FindChanged())
             {
-                Activity.Info(_logger, "Poster of {Item} was changed outside JellyBadge, checking it again", item.Name);
-                Enqueue(item.Id);
+                Swapped(item.Id);
             }
         }
         catch (IOException ex)
@@ -238,7 +293,7 @@ public sealed class BadgeWorker : BackgroundService
         // Our own poster save fires ItemUpdated too: drop it here, the hash check catches anything else.
         if (e.Item is Movie or Series or Season or Episode or BoxSet && !_processor.IsOwnWrite(e.Item))
         {
-            Enqueue(e.Item.Id);
+            Swapped(e.Item.Id);
         }
 
         // A new or updated episode can change what is most common for its series and season.
