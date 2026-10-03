@@ -167,6 +167,12 @@ Some scheduled tasks and outside tools (metadata plugins, Sonarr, Radarr) can pu
 </details>
 
 <details>
+<summary><b>Why does SEASON SOON never show?</b></summary>
+
+Jellyfin only knows about episodes that have not aired yet when a metadata plugin adds them. In **Dashboard > Plugins > TMDb**, tick **Create unaired (upcoming) episodes**, then tick each TV library in the list below it: the option is off by default and works per library. The TheTVDB plugin has a similar option. After the next **Refresh upcoming and missing episodes** task, series with a season starting within 7 days get the badge.
+</details>
+
+<details>
 <summary><b>Does JellyBadge change files in my media folders?</b></summary>
 
 No. Badged posters are saved in Jellyfin's own metadata folder. Your `poster.jpg` files and other artwork next to your media are never written or deleted, so tools like Kodi, Plex, Sonarr and Radarr never see a badged poster.
