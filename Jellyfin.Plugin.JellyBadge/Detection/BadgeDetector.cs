@@ -168,23 +168,28 @@ public static partial class BadgeDetector
     }
 
     /// <summary>
-    /// Whether a badge marks something that stands out. Everyday quality (720p, SD, stereo, 2.1, H.264) does not.
+    /// Whether a badge marks something that stands out. Everyday quality (720p, SD, stereo, mono, lossy audio, older codecs) does not.
     /// </summary>
     /// <param name="badge">The badge.</param>
     /// <returns>False for everyday quality.</returns>
     public static bool IsPremium(Badge badge) => (badge.Kind, badge.Text) switch
     {
         (BadgeKind.Resolution, "720p" or "SD") => false,
-        (BadgeKind.AudioChannels, "2.0" or "2.1") => false,
-        (BadgeKind.VideoCodec, "H.264") => false,
+        (BadgeKind.AudioChannels, "2.0" or "2.1" or "MONO") => false,
+        (BadgeKind.AudioFormat, "DTS" or "DD+" or "DD" or "AAC" or "OPUS" or "MP3") => false,
+        (BadgeKind.VideoCodec, "H.264" or "VC-1" or "MPEG-2" or "MPEG-4") => false,
         _ => true
     };
 
     private static Ranked VideoCodec(MediaStream video) => (video.Codec ?? string.Empty).ToLowerInvariant() switch
     {
-        "av1" => new(3, "AV1"),
-        "hevc" or "h265" => new(2, "HEVC"),
-        "h264" or "avc" => new(1, "H.264"),
+        "av1" => new(7, "AV1"),
+        "hevc" or "h265" => new(6, "HEVC"),
+        "vp9" => new(5, "VP9"),
+        "h264" or "avc" => new(4, "H.264"),
+        "vc1" => new(3, "VC-1"),
+        "mpeg2video" => new(2, "MPEG-2"),
+        "mpeg4" or "msmpeg4v3" => new(1, "MPEG-4"),
         _ => Ranked.None
     };
 
@@ -235,25 +240,32 @@ public static partial class BadgeDetector
 
         if (Has(profile, "atmos") || Has(audio.Title, "atmos"))
         {
-            return new(4, "ATMOS");
+            return new(11, "ATMOS");
         }
 
         if (isDts && (Has(profile, "dts:x") || Has(profile, "dts-x")))
         {
-            return new(3, "DTS:X");
-        }
-
-        if (codec.Equals("truehd", StringComparison.OrdinalIgnoreCase))
-        {
-            return new(2, "TRUEHD");
+            return new(10, "DTS:X");
         }
 
         if (isDts && Has(profile, "ma"))
         {
-            return new(1, "DTS-HD MA");
+            return new(8, "DTS-HD MA");
         }
 
-        return Ranked.None;
+        return codec.ToLowerInvariant() switch
+        {
+            "truehd" => new(9, "TRUEHD"),
+            "flac" => new(7, "FLAC"),
+            _ when codec.StartsWith("pcm", StringComparison.OrdinalIgnoreCase) => new(7, "PCM"),
+            "dts" => new(6, "DTS"),
+            "eac3" => new(5, "DD+"),
+            "ac3" => new(4, "DD"),
+            "aac" => new(3, "AAC"),
+            "opus" => new(2, "OPUS"),
+            "mp3" => new(1, "MP3"),
+            _ => Ranked.None
+        };
     }
 
     // The layout ffprobe reports ("5.1(side)", "2.1", "stereo") is most exact; the channel count covers files without one.
@@ -266,6 +278,7 @@ public static partial class BadgeDetector
             >= 6 => "5.1",
             3 => "2.1",
             2 => "2.0",
+            1 => "MONO",
             _ => null
         };
 

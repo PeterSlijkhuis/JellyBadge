@@ -55,14 +55,14 @@ JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos** and **★ 
 |---|---|---|
 | Resolution | `4K` `1080p` `720p` `SD` | the video stream size |
 | Dynamic range | `DOLBY VISION` `HDR10+` `HDR10` `HLG` | the video range type |
-| Video codec | `AV1` `HEVC` `H.264` | the video codec, off until you switch it on |
+| Video codec | `AV1` `HEVC` `VP9` `H.264` `VC-1` `MPEG-2` | the video codec, off until you switch it on |
 | Remux | `REMUX` | the file or folder name, off until you switch it on |
-| Audio format | `ATMOS` `DTS:X` `TRUEHD` `DTS-HD MA` | the audio codec and profile |
-| Audio channels | `7.1` `5.1` `2.1` `2.0` and others | the audio channel layout |
+| Audio format | `ATMOS` `DTS:X` `TRUEHD` `DTS-HD MA` `FLAC` `PCM` `DTS` `DD+` `DD` `AAC` | the audio codec and profile |
+| Audio channels | `7.1` `5.1` `2.1` `2.0` `MONO` and others | the audio channel layout |
 | Community rating | `★ 8.4` | the item's community rating |
 | Critic rating | `✓ 93%` | the item's critic rating |
 
-Each group can be switched on or off. A badge only appears when the item actually has it. Switch on **Only premium badges** to leave out everyday quality (`720p`, `SD`, `2.0`, `2.1` and `H.264`), so badges only appear when something stands out.
+Each group can be switched on or off. A badge only appears when the item actually has it. Switch on **Only premium badges** to leave out everyday quality (`720p`, `SD`, stereo, mono, lossy audio like `DD+` and `AAC`, and older codecs like `H.264`), so badges only appear when something stands out.
 
 ### Styles and placement
 

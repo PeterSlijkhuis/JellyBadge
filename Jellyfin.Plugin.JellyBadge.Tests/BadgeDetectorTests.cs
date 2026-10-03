@@ -18,7 +18,7 @@ public class BadgeDetectorTests
     [InlineData("fhd-hdr10plus-dtsx", "1080p,HDR10+,HEVC,DTS:X,7.1")]
     [InlineData("scope-sdr-dtshdma", "1080p,H.264,DTS-HD MA,5.1")]
     [InlineData("hd-hlg-eac3-atmos", "720p,HLG,HEVC,ATMOS,5.1")]
-    [InlineData("sd-stereo", "SD,2.0")]
+    [InlineData("sd-stereo", "SD,MPEG-2,AAC,2.0")]
     [InlineData("dolby-vision-invalid", "4K,HDR10,HEVC,TRUEHD,7.1")]
     public void DetectsTechnicalBadges(string fixture, string expected)
     {
@@ -60,7 +60,21 @@ public class BadgeDetectorTests
     [Fact]
     public void DetectsAv1()
     {
-        Assert.Equal("1080p,AV1,2.0", Texts(BadgeDetector.BestVersion([Load("fhd-av1-stereo")])));
+        Assert.Equal("1080p,AV1,OPUS,2.0", Texts(BadgeDetector.BestVersion([Load("fhd-av1-stereo")])));
+    }
+
+    [Theory]
+    [InlineData("eac3", null, "DD+")]
+    [InlineData("ac3", null, "DD")]
+    [InlineData("dts", "DTS-HD HRA", "DTS")]
+    [InlineData("dts", "DTS-HD MA", "DTS-HD MA")]
+    [InlineData("flac", null, "FLAC")]
+    [InlineData("pcm_s24le", null, "PCM")]
+    [InlineData("vorbis", null, "")]
+    public void NamesAudioFormats(string codec, string? profile, string expected)
+    {
+        var audio = new MediaStream { Type = MediaStreamType.Audio, Codec = codec, Profile = profile };
+        Assert.Equal(expected, Texts(BadgeDetector.BestVersion([new List<MediaStream> { audio }])));
     }
 
     [Theory]
@@ -69,10 +83,10 @@ public class BadgeDetectorTests
     [InlineData(6, "5.1(side)", "5.1")]
     [InlineData(5, "5.0", "5.0")]
     [InlineData(2, "stereo", "2.0")]
-    [InlineData(1, "mono", "")]
+    [InlineData(1, "mono", "MONO")]
     public void ReadsChannelLayout(int channels, string? layout, string expected)
     {
-        var audio = new MediaStream { Type = MediaStreamType.Audio, Codec = "aac", Channels = channels, ChannelLayout = layout };
+        var audio = new MediaStream { Type = MediaStreamType.Audio, Channels = channels, ChannelLayout = layout };
         Assert.Equal(expected, Texts(BadgeDetector.BestVersion([new List<MediaStream> { audio }])));
     }
 

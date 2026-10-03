@@ -215,7 +215,7 @@
                             <div class="jb-tiles" id="jbTiles" role="group" aria-label="Badges"></div>
                             <button type="button" class="jb-tile" role="switch" id="jbPremium" data-key="PremiumOnly" aria-checked="false" style="margin-top:0.7em;width:100%;">
                                 <span class="jb-chip">★</span>
-                                <span class="jb-tile-text"><b>Only premium badges</b><small>Leaves out 720p, SD, stereo, 2.1 and H.264, so badges only appear when something stands out.</small></span>
+                                <span class="jb-tile-text"><b>Only premium badges</b><small>Leaves out 720p, SD, stereo, mono, lossy audio (DD, DD+, DTS, AAC) and older codecs (H.264, VC-1, MPEG-2), so badges only appear when something stands out.</small></span>
                                 <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
                             </button>
                         </section>
@@ -322,10 +322,10 @@
                 var badges = [
                     ['ShowResolution', 'Resolution', '4K, 1080p, 720p, SD', '4K'],
                     ['ShowDynamicRange', 'Dynamic range', 'Dolby Vision, HDR10+, HDR10, HLG', 'HDR10+'],
-                    ['ShowVideoCodec', 'Video codec', 'AV1, HEVC, H.264', 'HEVC'],
+                    ['ShowVideoCodec', 'Video codec', 'AV1, HEVC, VP9, H.264, VC-1, MPEG-2', 'HEVC'],
                     ['ShowRemux', 'Remux', 'From the file or folder name', 'REMUX'],
-                    ['ShowAudioFormat', 'Audio format', 'Atmos, DTS:X, TrueHD, DTS-HD MA', 'ATMOS'],
-                    ['ShowAudioChannels', 'Audio channels', '7.1, 5.1, 2.1, 2.0', '7.1'],
+                    ['ShowAudioFormat', 'Audio format', 'Atmos, DTS:X, TrueHD, DTS-HD MA, FLAC, DTS, DD+, DD, AAC', 'ATMOS'],
+                    ['ShowAudioChannels', 'Audio channels', '7.1, 5.1, 2.1, 2.0, mono', '7.1'],
                     ['ShowCommunityRating', 'Community rating', 'Score out of 10', '★ 7.8'],
                     ['ShowCriticRating', 'Critic rating', 'Percentage', '✓ 92%']
                 ];
