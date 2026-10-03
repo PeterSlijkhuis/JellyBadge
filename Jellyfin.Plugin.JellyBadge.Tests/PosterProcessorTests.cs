@@ -85,6 +85,7 @@ public sealed class PosterProcessorTests : IDisposable
         Assert.Equal(before, Bytes(_mediaPoster));
         Assert.Equal(before, Bytes(Directory.GetFiles(Path.Combine(DataDir, "originals")).Single()));
         Assert.NotEqual(before, Bytes(CurrentPath()));
+        Assert.StartsWith("Badged Harbor Watch: ", Activity.Read()[0].Split('\t')[2], StringComparison.Ordinal);
     }
 
     [Fact]
@@ -99,6 +100,20 @@ public sealed class PosterProcessorTests : IDisposable
         await _processor.ProcessAsync(_item, CancellationToken.None);
 
         Assert.Equal(1, _saves);
+    }
+
+    [Fact]
+    public async Task RebadgesPosterRewrittenOnDiskBehindJellyfinsBack()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        // Another tool puts the original back in place; Jellyfin's record of the image stays the same.
+        File.Copy(_mediaPoster, CurrentPath(), true);
+        File.SetLastWriteTimeUtc(CurrentPath(), DateTime.UtcNow.AddMinutes(5));
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(2, _saves);
+        Assert.NotEqual(Bytes(_mediaPoster), Bytes(CurrentPath()));
     }
 
     [Fact]

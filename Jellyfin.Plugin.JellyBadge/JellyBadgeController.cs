@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyBadge.Configuration;
@@ -60,6 +61,13 @@ public class JellyBadgeController : ControllerBase
         var font = typeof(JellyBadgeController).Assembly.GetManifestResourceStream("Jellyfin.Plugin.JellyBadge.Rendering.Fonts.BarlowCondensed-Bold.ttf")!;
         return File(font, "font/ttf");
     }
+
+    /// <summary>
+    /// What JellyBadge did recently, newest first.
+    /// </summary>
+    /// <returns>Tab separated lines: time, kind, message.</returns>
+    [HttpGet("Activity")]
+    public ActionResult<IReadOnlyList<string>> GetActivity() => Ok(Activity.Read());
 
     /// <summary>
     /// Turns badging off and restores every original poster.

@@ -8,6 +8,7 @@ using MediaBrowser.Controller.Entities.TV;
 using Jellyfin.Plugin.JellyBadge.Configuration;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Plugins;
+using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -20,6 +21,7 @@ namespace Jellyfin.Plugin.JellyBadge.Processing;
 public sealed class BadgeWorker : BackgroundService
 {
     private readonly ILibraryManager _libraryManager;
+    private readonly ITaskManager _taskManager;
     private readonly PosterProcessor _processor;
     private readonly ILogger<BadgeWorker> _logger;
     private readonly Channel<Guid> _queue = Channel.CreateUnbounded<Guid>();
@@ -29,11 +31,13 @@ public sealed class BadgeWorker : BackgroundService
     /// Initializes a new instance of the <see cref="BadgeWorker"/> class.
     /// </summary>
     /// <param name="libraryManager">Library manager.</param>
+    /// <param name="taskManager">Task manager.</param>
     /// <param name="processor">Poster processor.</param>
     /// <param name="logger">Logger.</param>
-    public BadgeWorker(ILibraryManager libraryManager, PosterProcessor processor, ILogger<BadgeWorker> logger)
+    public BadgeWorker(ILibraryManager libraryManager, ITaskManager taskManager, PosterProcessor processor, ILogger<BadgeWorker> logger)
     {
         _libraryManager = libraryManager;
+        _taskManager = taskManager;
         _processor = processor;
         _logger = logger;
     }
@@ -43,6 +47,7 @@ public sealed class BadgeWorker : BackgroundService
     {
         _libraryManager.ItemAdded += OnItemChanged;
         _libraryManager.ItemUpdated += OnItemChanged;
+        _taskManager.TaskCompleted += OnTaskCompleted;
         Plugin.Instance!.ConfigurationChanged += OnConfigurationChanged;
         return base.StartAsync(cancellationToken);
     }
@@ -52,6 +57,7 @@ public sealed class BadgeWorker : BackgroundService
     {
         _libraryManager.ItemAdded -= OnItemChanged;
         _libraryManager.ItemUpdated -= OnItemChanged;
+        _taskManager.TaskCompleted -= OnTaskCompleted;
         Plugin.Instance!.ConfigurationChanged -= OnConfigurationChanged;
         _queue.Writer.TryComplete();
         return base.StopAsync(cancellationToken);
@@ -76,7 +82,7 @@ public sealed class BadgeWorker : BackgroundService
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogError(ex, "Failed to badge {Item}", item.Name);
+                Activity.Log(_logger, LogLevel.Error, ex, "Failed to badge {Item}", item.Name);
             }
         }
     }
@@ -86,6 +92,7 @@ public sealed class BadgeWorker : BackgroundService
     {
         if (config is PluginConfiguration { Enabled: false })
         {
+            Activity.Info(_logger, "JellyBadge was switched off, restoring original posters");
             _ = Task.Run(async () =>
             {
                 try
@@ -94,9 +101,20 @@ public sealed class BadgeWorker : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to restore original posters");
+                    Activity.Log(_logger, LogLevel.Error, ex, "Failed to restore original posters");
                 }
             });
+        }
+    }
+
+    // Scans and metadata plugins can swap posters without an update event we can use. A sweep after
+    // each of them puts the badges back; items that are still fine are skipped without reading the image.
+    private void OnTaskCompleted(object? sender, TaskCompletionEventArgs e)
+    {
+        if (Plugin.Instance?.Configuration.Enabled == true && e.Task.ScheduledTask is not ApplyBadgesTask)
+        {
+            Activity.Info(_logger, "{Task} finished, checking all posters", e.Task.Name);
+            _taskManager.QueueScheduledTask<ApplyBadgesTask>();
         }
     }
 

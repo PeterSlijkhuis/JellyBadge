@@ -131,6 +131,7 @@ public sealed class PosterProcessor : IDisposable
             else if (LoadState(item.Id) is { } state)
             {
                 // Excluded since we badged it (episodes switched off, library deselected): put its original back.
+                Activity.Info(_logger, "{Item} is no longer included, restoring its original poster", item.Name);
                 await RestoreAsync(item, state, cancellationToken).ConfigureAwait(false);
                 File.Delete(OriginalFile(item.Id, state));
                 File.Delete(StateFile(item.Id));
@@ -225,11 +226,11 @@ public sealed class PosterProcessor : IDisposable
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Keep the backup so a retry can still restore it.
-                _logger.LogError(ex, "Could not restore poster for {Item}", item?.Name ?? id.ToString());
+                Activity.Log(_logger, LogLevel.Error, ex, "Could not restore poster for {Item}", item?.Name ?? id.ToString());
             }
         }
 
-        _logger.LogInformation("Restored {Count} original posters", restored);
+        Activity.Info(_logger, "Restored {Count} original posters", restored);
         return restored;
     }
 
@@ -241,7 +242,10 @@ public sealed class PosterProcessor : IDisposable
         var info = item.GetImageInfo(ImageType.Primary, 0);
 
         // Done before: same image file as we left it and same badges and settings. Skip without reading the image.
+        // The file's own timestamp is checked too, because other tools (Radarr, Sonarr, metadata plugins) can rewrite
+        // a poster on disk without Jellyfin noticing.
         if (state is not null && info is not null && info.Path == state.OutputPath && info.DateModified == state.OutputModified
+            && File.Exists(info.Path) && File.GetLastWriteTimeUtc(info.Path) == state.OutputModified
             && InputHash(state, badges, config) == state.InputHash)
         {
             return;
@@ -263,7 +267,7 @@ public sealed class PosterProcessor : IDisposable
             var file = OriginalFile(item.Id, state);
             if (!File.Exists(file))
             {
-                _logger.LogWarning("Backup for {Item} is missing, leaving its poster alone", item.Name);
+                Activity.Log(_logger, LogLevel.Warning, null, "Backup for {Item} is missing, leaving its poster alone", item.Name);
                 return;
             }
 
@@ -278,7 +282,7 @@ public sealed class PosterProcessor : IDisposable
                 if (state is not null)
                 {
                     File.Delete(OriginalFile(item.Id, state));
-                    _logger.LogInformation("Poster of {Item} was replaced, using it as the new original", item.Name);
+                    Activity.Info(_logger, "Poster of {Item} was replaced, using it as the new original", item.Name);
                 }
 
                 state = new PosterState { OriginalHash = currentHash, OriginalExtension = Path.GetExtension(currentPath) };
@@ -316,7 +320,7 @@ public sealed class PosterProcessor : IDisposable
         SaveState(item.Id, state);
         await SavePrimaryAsync(item, output, BadgeRenderer.MimeType(output), cancellationToken).ConfigureAwait(false);
         MarkDone(item, state);
-        _logger.LogDebug("Badged {Item}: {Badges}", item.Name, string.Join(", ", badges.Select(b => b.Text)));
+        Activity.Log(_logger, LogLevel.Debug, null, "Badged {Item}: {Badges}", item.Name, string.Join(", ", badges.Select(b => b.Text)));
     }
 
     private static string InputHash(PosterState state, List<Badge> badges, PluginConfiguration config)
