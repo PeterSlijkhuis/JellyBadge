@@ -64,14 +64,19 @@ public class BadgeDetectorTests
     }
 
     [Theory]
-    [InlineData("/movies/Blade Runner (1982) {edition-Final Cut}/Blade Runner (1982) {edition-Final Cut}.mkv", "FINAL CUT")]
-    [InlineData("/movies/Aliens (1986)/Aliens.1986.Directors.Cut.2160p.mkv", "DIRECTOR'S CUT")]
-    [InlineData("/movies/Dune (2021)/Dune.2021.IMAX.1080p.mkv", "IMAX")]
-    [InlineData("/movies/The Hobbit Extended/movie.mkv", "EXTENDED")]
-    [InlineData("/movies/Maximum Overdrive (1986)/Maximum Overdrive.mkv", null)]
-    public void FindsEdition(string path, string? expected)
+    [InlineData("/movies/Blade Runner (1982) {edition-Final Cut}/Blade Runner (1982) {edition-Final Cut}.mkv", "Blade Runner", "FINAL CUT")]
+    [InlineData("/movies/Aliens (1986)/Aliens.1986.Directors.Cut.2160p.mkv", "Aliens", "DIRECTOR'S CUT")]
+    [InlineData("/movies/Dune (2021)/Dune.2021.IMAX.1080p.mkv", "Dune", "IMAX")]
+    [InlineData("/movies/The Hobbit Extended/movie.mkv", "The Hobbit: An Unexpected Journey", "EXTENDED")]
+    [InlineData("/movies/Maximum Overdrive (1986)/Maximum Overdrive.mkv", "Maximum Overdrive", null)]
+    [InlineData("/movies/Uncut Gems (2019)/Uncut Gems (2019).mkv", "Uncut Gems", null)]
+    [InlineData("/movies/The Final Cut (2004)/The.Final.Cut.2004.1080p.mkv", "The Final Cut", null)]
+    [InlineData("/movies/Blade Runner 2049 (2017)/Blade.Runner.2049.2017.IMAX.mkv", "Blade Runner 2049", "IMAX")]
+    [InlineData("/movies/Uncut Gems/Uncut Gems.mkv", "Uncut Gems", null)]
+    [InlineData("/movies/Unrated/Unrated Extended.mkv", "Unrated", "EXTENDED")]
+    public void FindsEdition(string path, string title, string? expected)
     {
-        Assert.Equal(expected, BadgeDetector.Edition(path)?.Text);
+        Assert.Equal(expected, BadgeDetector.Edition(path, title)?.Text);
     }
 
     [Theory]

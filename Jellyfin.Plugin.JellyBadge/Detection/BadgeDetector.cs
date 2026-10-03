@@ -178,8 +178,9 @@ public static partial class BadgeDetector
     /// The edition from a file or folder name: Radarr's {edition-...} tag first, then known words like Extended or IMAX.
     /// </summary>
     /// <param name="path">The media file path.</param>
+    /// <param name="title">The movie title, so words in it ("Uncut Gems") are not taken for an edition.</param>
     /// <returns>The edition badge, or null.</returns>
-    public static Badge? Edition(string? path)
+    public static Badge? Edition(string? path, string? title = null)
     {
         if (string.IsNullOrEmpty(path))
         {
@@ -195,7 +196,19 @@ public static partial class BadgeDetector
                 return new Badge(BadgeKind.Edition, text.Length > 20 ? text[..20].TrimEnd() : text);
             }
 
+            // Release names put the edition after the year (Aliens.1986.Directors.Cut), so the title before it never counts.
+            // Without a year, leave out the title itself.
             var words = Separators().Replace(name, " ");
+            var year = Year().Matches(words).LastOrDefault();
+            if (year is not null)
+            {
+                words = words[(year.Index + year.Length)..];
+            }
+            else if (!string.IsNullOrWhiteSpace(title))
+            {
+                words = words.Replace(Separators().Replace(title, " ").Trim(), " ", StringComparison.OrdinalIgnoreCase);
+            }
+
             foreach (var (pattern, label) in Editions)
             {
                 if (pattern.IsMatch(words))
@@ -312,6 +325,9 @@ public static partial class BadgeDetector
 
     [GeneratedRegex(@"\{edition-([^}]+)\}", RegexOptions.IgnoreCase)]
     private static partial Regex EditionTag();
+
+    [GeneratedRegex(@"\b(19|20)\d{2}\b")]
+    private static partial Regex Year();
 
     [GeneratedRegex(@"[._\-\[\]()]+")]
     private static partial Regex Separators();

@@ -461,7 +461,7 @@ public sealed class PosterProcessor : IDisposable
             lead.Add(status);
         }
 
-        if (item is Movie && BadgeDetector.Edition(item.Path) is { } edition)
+        if (item is Movie && BadgeDetector.Edition(item.Path, item.Name) is { } edition)
         {
             lead.Add(edition);
         }
