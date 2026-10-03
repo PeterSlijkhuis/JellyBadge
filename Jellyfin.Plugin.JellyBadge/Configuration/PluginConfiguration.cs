@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Jellyfin.Plugin.JellyBadge.Detection;
 using MediaBrowser.Model.Plugins;
 
 namespace Jellyfin.Plugin.JellyBadge.Configuration;
@@ -54,6 +56,18 @@ public enum BadgeSize
 
     /// <summary>Large.</summary>
     Large
+}
+
+/// <summary>
+/// The spot chosen for one badge group.
+/// </summary>
+public class BadgeSpot
+{
+    /// <summary>Gets or sets the badge group.</summary>
+    public BadgeKind Kind { get; set; }
+
+    /// <summary>Gets or sets where that group goes.</summary>
+    public BadgePosition Position { get; set; }
 }
 
 /// <summary>
@@ -119,6 +133,12 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Gets or sets the badge position.</summary>
     public BadgePosition Position { get; set; } = BadgePosition.TopLeft;
+
+    /// <summary>Gets or sets a value indicating whether <see cref="Spots"/> is used.</summary>
+    public bool SpotPerBadge { get; set; }
+
+    /// <summary>Gets or sets the spot per badge group. Groups without one use <see cref="Position"/>.</summary>
+    public List<BadgeSpot> Spots { get; set; } = [];
 
     /// <summary>Gets or sets the badge style.</summary>
     public BadgeStyle Style { get; set; } = BadgeStyle.Pill;

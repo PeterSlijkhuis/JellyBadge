@@ -69,7 +69,7 @@ Each group can be switched on or off. A badge only appears when the item actuall
 
 ### Styles and placement
 
-Pick a corner or a strip along the top or bottom, one of three styles and three sizes. Badges fill their spot: with only a few they grow (up to 2 times the chosen size), and with many they move to two rows or two columns so they stay readable on a phone. They also scale with the poster, so they stay readable on a big TV and on a small phone.
+Pick a corner or a strip along the top or bottom, one of three styles and three sizes. Switch on **Choose a spot per badge** to give each badge group its own spot, for example quality top left, status top right and ratings along the bottom. Badges stay the same size in every spot and never overlap. Badges fill their spot: with only a few they grow (up to 2 times the chosen size), and with many they move to two rows or two columns so they stay readable on a phone. They also scale with the poster, so they stay readable on a big TV and on a small phone.
 
 <table>
   <tr>

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Jellyfin.Plugin.JellyBadge.Configuration;
 using Jellyfin.Plugin.JellyBadge.Detection;
 using Jellyfin.Plugin.JellyBadge.Rendering;
@@ -63,6 +65,74 @@ public class BadgeRendererTests
         if (!string.IsNullOrEmpty(samples))
         {
             File.WriteAllBytes(Path.Combine(samples, $"fit-{position}-{count}.jpg"), output);
+        }
+    }
+
+    // One badge per group, with the longest texts each group can have.
+    private static readonly Badge[] AllKinds =
+    [
+        new(BadgeKind.Status, "SEASON 12 SOON"),
+        new(BadgeKind.Edition, "DIRECTOR'S CUT"),
+        new(BadgeKind.Resolution, "1080p"),
+        new(BadgeKind.DynamicRange, "DOLBY VISION"),
+        new(BadgeKind.VideoCodec, "MPEG-2"),
+        new(BadgeKind.Remux, "REMUX"),
+        new(BadgeKind.AudioFormat, "DTS-HD MA"),
+        new(BadgeKind.AudioChannels, "MONO"),
+        new(BadgeKind.Language, "NL SUBS"),
+        new(BadgeKind.CommunityRating, "10.0"),
+        new(BadgeKind.CriticRating, "100%")
+    ];
+
+    [Theory]
+    [InlineData(600, 900, BadgeSize.Large)]
+    [InlineData(600, 900, BadgeSize.Small)]
+    [InlineData(1280, 720, BadgeSize.Medium)]
+    public void SpotsNeverOverlapOrLeaveThePoster(int width, int height, BadgeSize size)
+    {
+        var positions = Enum.GetValues<BadgePosition>();
+        for (var mask = 1; mask < 1 << positions.Length; mask++)
+        {
+            var used = positions.Where((_, i) => (mask & (1 << i)) != 0).ToArray();
+            for (var count = 1; count <= AllKinds.Length; count++)
+            {
+                var badges = AllKinds[..count];
+                var config = new PluginConfiguration
+                {
+                    Size = size,
+                    SpotPerBadge = true,
+                    Spots = badges.Select((b, i) => new BadgeSpot { Kind = b.Kind, Position = used[i % used.Length] }).ToList()
+                };
+
+                var placed = BadgeRenderer.Layout(width, height, badges, config).Badges;
+                var where = $"spots {string.Join('+', used)}, {count} badges";
+                Assert.Equal(count, placed.Count);
+                Assert.Single(placed.Select(p => p.Height).Distinct());
+                foreach (var p in placed)
+                {
+                    Assert.True(p.X >= 0 && p.Y >= 0 && p.Box.Right <= width && p.Box.Bottom <= height, $"{p.Badge.Text} leaves the poster with {where}");
+                    var hit = placed.FirstOrDefault(o => !o.Equals(p) && o.Box.IntersectsWith(p.Box));
+                    Assert.True(hit.Badge is null, $"{p.Badge.Text} overlaps {hit.Badge?.Text} with {where}");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void SpotPerBadgeOffIgnoresSpots()
+    {
+        var spots = new List<BadgeSpot> { new() { Kind = BadgeKind.CommunityRating, Position = BadgePosition.BottomRight } };
+        var plain = BadgeRenderer.Render(Poster(SKEncodedImageFormat.Jpeg), Badges, new PluginConfiguration(), out _);
+        var off = BadgeRenderer.Render(Poster(SKEncodedImageFormat.Jpeg), Badges, new PluginConfiguration { Spots = spots }, out _);
+        var on = BadgeRenderer.Render(Poster(SKEncodedImageFormat.Jpeg), Badges, new PluginConfiguration { Spots = spots, SpotPerBadge = true }, out _);
+
+        Assert.Equal(plain, off);
+        Assert.NotEqual(plain, on);
+
+        var samples = Environment.GetEnvironmentVariable("JELLYBADGE_SAMPLES");
+        if (!string.IsNullOrEmpty(samples))
+        {
+            File.WriteAllBytes(Path.Combine(samples, "spot-per-badge.jpg"), on);
         }
     }
 

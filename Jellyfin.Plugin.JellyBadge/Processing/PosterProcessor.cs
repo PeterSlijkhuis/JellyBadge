@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
@@ -349,16 +350,25 @@ public sealed class PosterProcessor : IDisposable
         }
     }
 
+    private static readonly JsonSerializerOptions _hashOptions = new() { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
+
+    // Spots only count when used, and only for the badges this poster has, so earlier hashes stay valid
+    // and changing the spot of a badge redraws only the posters that show it.
     private static string InputHash(PosterState state, List<Badge> badges, PluginConfiguration config)
-        => Hash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
-        {
-            RenderVersion,
-            state.OriginalHash,
-            badges,
-            config.Position,
-            config.Style,
-            config.Size
-        })));
+        => Hash(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(
+            new
+            {
+                RenderVersion,
+                state.OriginalHash,
+                badges,
+                config.Position,
+                config.Style,
+                config.Size,
+                Spots = config.SpotPerBadge
+                    ? config.Spots.Where(s => badges.Any(b => b.Kind == s.Kind)).OrderBy(s => s.Kind).Select(s => $"{s.Kind}:{s.Position}").ToArray()
+                    : null
+            },
+            _hashOptions)));
 
     // Remember which file and timestamp we left, so later runs can skip this item without reading the image.
     private static void MarkDone(BaseItem item, PosterState state)
