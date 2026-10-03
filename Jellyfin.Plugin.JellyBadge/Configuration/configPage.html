@@ -219,6 +219,11 @@
                                 <label for="jbLang" class="jb-hint" style="display:block;margin:0 0 0.4em;">Language for the language badge</label>
                                 <select id="jbLang"></select>
                             </div>
+                            <p class="jb-hint" id="jbStatusNote" style="margin:0.8em 0 0;padding:0.7em 0.9em;border:1px solid var(--jb-line);border-radius:10px;" hidden>
+                                <b>SEASON SOON needs upcoming episodes.</b> Jellyfin only knows about them when a metadata plugin adds them.
+                                Open <b>Dashboard &gt; Plugins &gt; TMDb</b>, tick <b>Create unaired (upcoming) episodes</b> and tick each TV library in the list below it.
+                                The TheTVDB plugin has a similar option. Without it, shows get NEW EPISODE, RETURNING and ENDED only.
+                            </p>
                             <button type="button" class="jb-tile" role="switch" id="jbPremium" data-key="PremiumOnly" aria-checked="false" style="margin-top:0.7em;width:100%;">
                                 <span class="jb-chip">★</span>
                                 <span class="jb-tile-text"><b>Only premium badges</b><small>Leaves out 720p, SD, stereo, mono, lossy audio (DD, DD+, DTS, AAC) and older codecs (H.264, VC-1, MPEG-2), so badges only appear when something stands out.</small></span>
@@ -333,7 +338,7 @@
                     ['ShowAudioFormat', 'Audio format', 'Atmos, DTS:X, TrueHD, DTS-HD MA, FLAC, DTS, DD+, DD, AAC', 'ATMOS'],
                     ['ShowAudioChannels', 'Audio channels', '7.1, 5.1, 2.1, 2.0, mono', '7.1'],
                     ['ShowEdition', 'Edition', "Director's Cut, Extended, IMAX, from the file name", 'EXTENDED'],
-                    ['ShowStatus', 'Show status', 'New episode, returning, ended', 'NEW EPISODE'],
+                    ['ShowStatus', 'Show status', 'New episode, new season soon, returning, ended', 'NEW EPISODE'],
                     ['ShowLanguage', 'Language', 'Audio or subtitles in your language', 'NL SUBS'],
                     ['ShowCommunityRating', 'Community rating', 'Score out of 10', '★ 7.8'],
                     ['ShowCriticRating', 'Critic rating', 'Percentage', '✓ 92%']
@@ -409,6 +414,7 @@
                     });
                     $('jbSeasonRating').hidden = !config.BadgeSeasons;
                     $('jbLangRow').hidden = !config.ShowLanguage;
+                    $('jbStatusNote').hidden = !config.ShowStatus;
                     $('jbLang').value = (config.LanguageCodes || [])[0] || '';
 
                     $('jbPoster').innerHTML = positions.map(function (p) {

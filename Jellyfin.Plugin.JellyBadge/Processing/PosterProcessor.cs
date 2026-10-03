@@ -32,7 +32,7 @@ public sealed class PosterProcessor : IDisposable
     // Bump when the drawing changes, so every poster gets re-rendered once.
     private const int RenderVersion = 2;
 
-    // How long a newly added episode puts NEW EPISODE on its series.
+    // How long a newly aired episode puts NEW EPISODE on its series.
     private const int NewEpisodeDays = 7;
 
     private readonly ILibraryManager _libraryManager;
@@ -446,7 +446,7 @@ public sealed class PosterProcessor : IDisposable
         // Status and edition go first: they say the most at a glance.
         var lead = new List<Badge>();
         if (item is Series series
-            && BadgeDetector.Status(series.Status, episodes.Count == 0 ? null : episodes.Max(e => e.DateCreated), DateTime.UtcNow, NewEpisodeDays) is { } status)
+            && BadgeDetector.Status(series.Status, LastAired(episodes), config.ShowStatus ? UpcomingSeason(series) : null, DateTime.UtcNow, NewEpisodeDays) is { } status)
         {
             lead.Add(status);
         }
@@ -491,9 +491,33 @@ public sealed class PosterProcessor : IDisposable
             .ToList();
     }
 
+    // A season whose first episode airs in the coming days. Unaired episodes only exist when a metadata
+    // plugin adds them (TMDb's "unaired episodes" option, for example).
+    private int? UpcomingSeason(Series series)
+    {
+        var now = DateTime.UtcNow;
+        return _libraryManager.GetItemList(new InternalItemsQuery
+            {
+                AncestorIds = [series.Id],
+                IncludeItemTypes = [BaseItemKind.Episode],
+                Recursive = true,
+                MinPremiereDate = now,
+                MaxPremiereDate = now.AddDays(NewEpisodeDays)
+            })
+            .OfType<Episode>()
+            .Where(e => e.IndexNumber == 1 && e.ParentIndexNumber > 0)
+            .Select(e => e.ParentIndexNumber)
+            .Min();
+    }
+
+    // The newest air date that has passed, so announced future episodes do not count.
+    private static DateTime? LastAired(IEnumerable<BaseItem> episodes)
+        => episodes.Select(e => e.PremiereDate).Where(d => d <= DateTime.UtcNow).Max();
+
     private static float? Average(IEnumerable<float?> values)
     {
-        var rated = values.OfType<float>().ToList();
+        // Unrated episodes often carry 0 instead of nothing: leave both out.
+        var rated = values.OfType<float>().Where(v => v > 0).ToList();
         return rated.Count == 0 ? null : rated.Average();
     }
 

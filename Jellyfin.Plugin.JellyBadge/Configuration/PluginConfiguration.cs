@@ -93,7 +93,7 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether to show the edition (Director's Cut, Extended, IMAX) of movies.</summary>
     public bool ShowEdition { get; set; }
 
-    /// <summary>Gets or sets a value indicating whether series show NEW EPISODE, RETURNING or ENDED.</summary>
+    /// <summary>Gets or sets a value indicating whether series show NEW EPISODE (aired in the last 7 days), RETURNING or ENDED.</summary>
     public bool ShowStatus { get; set; }
 
     /// <summary>Gets or sets a value indicating whether to show a badge for audio or subtitles in <see cref="LanguageCodes"/>.</summary>
