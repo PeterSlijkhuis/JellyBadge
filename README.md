@@ -159,7 +159,7 @@ Switch JellyBadge **Off** at the top of its settings page and save, or click **R
 
 If you replaced a poster after it was badged, your newer poster is kept.
 
-Uninstalling JellyBadge does the same before it goes, so no badged poster is left behind.
+Uninstalling JellyBadge, or disabling it in Jellyfin's plugin list, does the same before it goes, so no badged poster is left behind. When you enable it in the list again, switch it on again on its settings page.
 
 ## FAQ
 
@@ -202,7 +202,7 @@ JellyBadge reads the media info Jellyfin collected for the file. Open the item, 
 <details>
 <summary><b>I changed a poster myself. Will JellyBadge overwrite it?</b></summary>
 
-It treats your new poster as the original, backs it up and adds badges to it. If you do not want badges on it, pick it in the live preview and click **Leave this poster alone**, then **Save**. It gets its original back and keeps it until you click **Badge again**.
+It treats your new poster as the original, backs it up and adds badges to it. If you do not want badges on it, pick it in the live preview and click **Leave this poster alone**, then **Save**. It gets its original back and keeps it until you click **Badge again**. Leaving a series or season alone covers its seasons and episodes too.
 </details>
 
 <details>
