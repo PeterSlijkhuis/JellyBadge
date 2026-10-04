@@ -244,10 +244,14 @@
                                 <select id="jbLang"></select>
                             </div>
                             <p class="jb-hint" id="jbStatusNote" style="margin:0.8em 0 0;padding:0.7em 0.9em;border:1px solid var(--jb-line);border-radius:10px;" hidden>
-                                <b>SEASON SOON needs upcoming episodes.</b> Jellyfin only knows about them when a metadata plugin adds them.
-                                Open <b>Dashboard &gt; Plugins &gt; TMDb</b>, tick <b>Create unaired (upcoming) episodes</b> and tick each TV library in the list below it.
-                                The TheTVDB plugin has a similar option. Without it, shows get NEW EPISODE, RETURNING and ENDED only.
+                                <b>SEASON SOON needs to know when a season starts.</b> With the switch below on, JellyBadge looks that up on TVmaze once a day per returning show, sending only the show's TVDb or IMDb id.
+                                Upcoming episodes a metadata plugin adds (TMDb's <b>Create unaired (upcoming) episodes</b>) count too.
                             </p>
+                            <button type="button" class="jb-tile" role="switch" id="jbPremieres" data-key="LookUpPremieres" aria-checked="false" style="margin-top:0.7em;width:100%;" hidden>
+                                <span class="jb-chip">SOON</span>
+                                <span class="jb-tile-text"><b>Look up season premieres online</b><small>Asks TVmaze when the next season starts, so SEASON SOON works without upcoming episodes in your library.</small></span>
+                                <span class="jb-switch" aria-hidden="true" aria-checked="false"></span>
+                            </button>
                             <div class="jb-search" id="jbNewRow" style="margin-top:0.7em;" hidden>
                                 <label for="jbNewDays" class="jb-hint" style="display:block;margin:0 0 0.4em;">NEW EPISODE stays up for</label>
                                 <select id="jbNewDays"><option value="3">3 days after airing</option><option value="7">7 days after airing</option><option value="14">14 days after airing</option></select>
@@ -425,13 +429,14 @@
                             '<span class="jb-switch" aria-hidden="true" aria-checked="' + !!config[b[0]] + '"></span></button>';
                     }).join('');
 
-                    [['jbSpotPerBadge', 'SpotPerBadge'], ['jbPremium', 'PremiumOnly'], ['jbEpisodes', 'BadgeEpisodes'], ['jbSeasons', 'BadgeSeasons'], ['jbSeasonRating', 'SeasonRatingFromEpisodes'], ['jbCollections', 'BadgeCollections']].forEach(function (t) {
+                    [['jbSpotPerBadge', 'SpotPerBadge'], ['jbPremium', 'PremiumOnly'], ['jbEpisodes', 'BadgeEpisodes'], ['jbSeasons', 'BadgeSeasons'], ['jbSeasonRating', 'SeasonRatingFromEpisodes'], ['jbCollections', 'BadgeCollections'], ['jbPremieres', 'LookUpPremieres']].forEach(function (t) {
                         [$(t[0]), $(t[0]).querySelector('.jb-switch')].forEach(function (el) { el.setAttribute('aria-checked', String(!!config[t[1]])); });
                     });
                     $('jbSeasonRating').hidden = !config.BadgeSeasons;
                     $('jbLangRow').hidden = !config.ShowLanguage;
                     $('jbStatusNote').hidden = !config.ShowStatus;
                     $('jbNewRow').hidden = !config.ShowStatus;
+                    $('jbPremieres').hidden = !config.ShowStatus;
                     $('jbNewDays').value = String(config.NewEpisodeDays || 7);
                     renderExcluded();
                     $('jbLang').value = (config.LanguageCodes || [])[0] || '';

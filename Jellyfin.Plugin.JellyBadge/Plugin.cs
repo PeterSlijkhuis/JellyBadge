@@ -81,6 +81,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     /// <inheritdoc />
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
+        serviceCollection.AddSingleton<Premieres>();
         serviceCollection.AddSingleton<PosterProcessor>();
         serviceCollection.AddHostedService<BadgeWorker>();
     }
