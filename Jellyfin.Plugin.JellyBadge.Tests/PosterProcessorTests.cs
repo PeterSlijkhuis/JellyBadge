@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyBadge.Configuration;
@@ -37,6 +39,9 @@ public sealed class PosterProcessorTests : IDisposable
     private readonly Series _item;
     private readonly string _mediaPoster;
     private int _saves;
+    private readonly Premieres _premieres;
+    private readonly List<string> _tvMazeCalls = [];
+    private Func<string, (HttpStatusCode Status, string Body)> _tvMaze = _ => (HttpStatusCode.NotFound, string.Empty);
 
     public PosterProcessorTests()
     {
@@ -67,7 +72,10 @@ public sealed class PosterProcessorTests : IDisposable
             });
 
         var paths = Mock.Of<IServerApplicationPaths>(p => p.InternalMetadataPath == Path.Combine(_root, "metadata"));
-        _newProcessor = () => new PosterProcessor(_library.Object, _providers.Object, paths, fileSystem.Object, NullLogger<PosterProcessor>.Instance);
+        var http = new Mock<IHttpClientFactory>();
+        http.Setup(h => h.CreateClient(It.IsAny<string>())).Returns(() => new HttpClient(new FakeTvMaze(this)));
+        _premieres = new Premieres(http.Object, NullLogger<Premieres>.Instance);
+        _newProcessor = () => new PosterProcessor(_library.Object, _providers.Object, paths, fileSystem.Object, _premieres, NullLogger<PosterProcessor>.Instance);
         _processor = _newProcessor();
 
         _mediaPoster = WritePoster(Path.Combine(_root, "media", "poster.jpg"), SKColors.SteelBlue);
@@ -310,6 +318,77 @@ public sealed class PosterProcessorTests : IDisposable
     }
 
     [Fact]
+    public async Task AnnouncedSeasonRedrawsTheSeriesTheSameDay()
+    {
+        Plugin.Instance!.Configuration.ShowStatus = true;
+        _item.Status = SeriesStatus.Continuing;
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        // Jellyfin adds the premiere as an episode without a file; the series itself is not saved.
+        var premiere = new Episode { Id = Guid.NewGuid(), IndexNumber = 1, ParentIndexNumber = 2, PremiereDate = DateTime.UtcNow.AddDays(1) };
+        _library.Setup(l => l.GetItemList(It.Is<InternalItemsQuery>(q => q.MinPremiereDate != null))).Returns([premiere]);
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(2, _saves);
+        Assert.Contains("SEASON 2 SOON", Activity.Read()[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TvMazePremiereShowsSeasonSoonWithoutUpcomingEpisodesInJellyfin()
+    {
+        Plugin.Instance!.Configuration.ShowStatus = true;
+        _item.Status = SeriesStatus.Continuing;
+        _item.SetProviderId(MetadataProvider.Tvdb, "81189");
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        _tvMaze = url => url.Contains("lookup", StringComparison.Ordinal) ? (HttpStatusCode.OK, "{\"id\":169}") : (HttpStatusCode.OK, NextEpisode(3, 1, 2));
+        Assert.True(await _premieres.RefreshAsync(_item, CancellationToken.None));
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(["https://api.tvmaze.com/lookup/shows?thetvdb=81189", "https://api.tvmaze.com/shows/169?embed=nextepisode"], _tvMazeCalls);
+        Assert.Equal(2, _saves);
+        Assert.Contains("SEASON 3 SOON", Activity.Read()[0], StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(2, 5, 2, null)]
+    [InlineData(3, 1, 10, null)]
+    [InlineData(3, 1, 2, 3)]
+    public async Task OnlyAPremiereWithinAWeekCounts(int season, int number, int inDays, int? expected)
+    {
+        _item.SetProviderId(MetadataProvider.Tvdb, "81189");
+        _tvMaze = url => url.Contains("lookup", StringComparison.Ordinal) ? (HttpStatusCode.OK, "{\"id\":169}") : (HttpStatusCode.OK, NextEpisode(season, number, inDays));
+        await _premieres.RefreshAsync(_item, CancellationToken.None);
+
+        Assert.Equal(expected, _premieres.Season(_item.Id, DateTime.UtcNow, TimeSpan.FromDays(7)));
+    }
+
+    [Fact]
+    public async Task TvMazeIsAskedOnceADayAndOutagesKeepTheLastAnswer()
+    {
+        _item.SetProviderId(MetadataProvider.Tvdb, "81189");
+        _tvMaze = url => url.Contains("lookup", StringComparison.Ordinal) ? (HttpStatusCode.OK, "{\"id\":169}") : (HttpStatusCode.OK, NextEpisode(3, 1, 2));
+        await _premieres.RefreshAsync(_item, CancellationToken.None);
+        Assert.False(_premieres.IsStale(_item.Id, DateTime.UtcNow));
+        Assert.True(_premieres.IsStale(_item.Id, DateTime.UtcNow.AddHours(25)));
+
+        _tvMaze = _ => (HttpStatusCode.ServiceUnavailable, string.Empty);
+        Assert.False(await _premieres.RefreshAsync(_item, CancellationToken.None));
+        Assert.Equal(3, _premieres.Season(_item.Id, DateTime.UtcNow, TimeSpan.FromDays(7)));
+
+        // Remembered across a restart, with the TVmaze id so the lookup is not repeated.
+        _premieres.Save();
+        var http = new Mock<IHttpClientFactory>();
+        http.Setup(h => h.CreateClient(It.IsAny<string>())).Returns(() => new HttpClient(new FakeTvMaze(this)));
+        var restarted = new Premieres(http.Object, NullLogger<Premieres>.Instance);
+        Assert.Equal(3, restarted.Season(_item.Id, DateTime.UtcNow, TimeSpan.FromDays(7)));
+        _tvMazeCalls.Clear();
+        _tvMaze = _ => (HttpStatusCode.OK, "{\"id\":169}");
+        await restarted.RefreshAsync(_item, CancellationToken.None);
+        Assert.Equal(["https://api.tvmaze.com/shows/169?embed=nextepisode"], _tvMazeCalls);
+    }
+
+    [Fact]
     public async Task SweepSkipsAnUnchangedSeriesWithoutAskingForItsEpisodes()
     {
         var episode = new Episode { Id = Guid.NewGuid() };
@@ -442,5 +521,20 @@ public sealed class PosterProcessorTests : IDisposable
         var sweep = new SweepCache([episode]);
         sweep.Episodes[episode.Id] = badges;
         return sweep;
+    }
+
+    private static string NextEpisode(int season, int number, int inDays)
+        => "{\"id\":169,\"_embedded\":{\"nextepisode\":{\"season\":" + season + ",\"number\":" + number
+            + ",\"airstamp\":\"" + DateTime.UtcNow.AddDays(inDays).ToString("o", System.Globalization.CultureInfo.InvariantCulture) + "\"}}}";
+
+    private sealed class FakeTvMaze(PosterProcessorTests test) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri!.ToString();
+            test._tvMazeCalls.Add(url);
+            var (status, body) = test._tvMaze(url);
+            return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) });
+        }
     }
 }

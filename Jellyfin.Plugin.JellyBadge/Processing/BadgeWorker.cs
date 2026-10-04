@@ -2,14 +2,18 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using Jellyfin.Plugin.JellyBadge.Configuration;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Common.Plugins;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Hosting;
@@ -27,6 +31,7 @@ public sealed class BadgeWorker : BackgroundService
     private readonly ITaskManager _taskManager;
     private readonly IPluginManager _pluginManager;
     private readonly PosterProcessor _processor;
+    private readonly Premieres _premieres;
     private readonly ILogger<BadgeWorker> _logger;
     private readonly Channel<Guid> _queue = Channel.CreateUnbounded<Guid>();
     private readonly ConcurrentDictionary<Guid, byte> _pending = new();
@@ -44,13 +49,15 @@ public sealed class BadgeWorker : BackgroundService
     /// <param name="taskManager">Task manager.</param>
     /// <param name="pluginManager">Plugin manager.</param>
     /// <param name="processor">Poster processor.</param>
+    /// <param name="premieres">Season premieres looked up online.</param>
     /// <param name="logger">Logger.</param>
-    public BadgeWorker(ILibraryManager libraryManager, ITaskManager taskManager, IPluginManager pluginManager, PosterProcessor processor, ILogger<BadgeWorker> logger)
+    public BadgeWorker(ILibraryManager libraryManager, ITaskManager taskManager, IPluginManager pluginManager, PosterProcessor processor, Premieres premieres, ILogger<BadgeWorker> logger)
     {
         _libraryManager = libraryManager;
         _taskManager = taskManager;
         _pluginManager = pluginManager;
         _processor = processor;
+        _premieres = premieres;
         _logger = logger;
     }
 
@@ -87,6 +94,7 @@ public sealed class BadgeWorker : BackgroundService
     {
         _ = WatchPluginListAsync(stoppingToken);
         _ = PutBackSwappedAsync(stoppingToken);
+        _ = LookUpPremieresAsync(stoppingToken);
 
         // ponytail: one consumer, events trickle in one at a time; the scheduled task does the bulk work in parallel.
         await foreach (var id in _queue.Reader.ReadAllAsync(stoppingToken).ConfigureAwait(false))
@@ -106,6 +114,61 @@ public sealed class BadgeWorker : BackgroundService
             {
                 Activity.Log(_logger, LogLevel.Error, ex, "Failed to badge {Item}", item.Name);
             }
+        }
+    }
+
+    // Once an hour, look up returning shows not checked in the last day: one at a time, never during a scan,
+    // and a show whose premiere changed is redrawn. The poster check itself only reads what was looked up.
+    private async Task LookUpPremieresAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromHours(1));
+        try
+        {
+            do
+            {
+                if (Plugin.Instance?.Configuration is not { Enabled: true, ShowStatus: true, LookUpPremieres: true })
+                {
+                    continue;
+                }
+
+                var now = DateTime.UtcNow;
+                var shows = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = [BaseItemKind.Series], IsVirtualItem = false })
+                    .OfType<Series>()
+                    .Where(s => s.Status == SeriesStatus.Continuing && _premieres.IsStale(s.Id, now) && _processor.IsCandidate(s))
+                    .ToList();
+                foreach (var series in shows)
+                {
+                    while (_libraryManager.IsScanRunning)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
+                    }
+
+                    if (await _premieres.RefreshAsync(series, stoppingToken).ConfigureAwait(false))
+                    {
+                        Enqueue(series.Id);
+                    }
+
+                    // Well under TVmaze's limit of 20 requests per 10 seconds.
+                    await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken).ConfigureAwait(false);
+                }
+
+                try
+                {
+                    if (shows.Count > 0)
+                    {
+                        _premieres.Save();
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Activity.Log(_logger, LogLevel.Warning, ex, "Could not save the season premieres");
+                }
+            }
+            while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false));
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down.
         }
     }
 

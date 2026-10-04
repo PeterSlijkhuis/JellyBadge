@@ -65,7 +65,7 @@ JellyBadge adds clean badges like **4K**, **Dolby Vision**, **Atmos**, **★ 8.4
 | Audio format | `ATMOS` `DTS:X` `TRUEHD` `DTS-HD MA` `FLAC` `PCM` `DTS` `DD+` `DD` `AAC` | the audio codec and profile |
 | Audio channels | `7.1` `5.1` `2.1` `2.0` `MONO` and others | the audio channel layout |
 | Edition | `DIRECTOR'S CUT` `EXTENDED` `IMAX` and others | Radarr's `{edition-...}` tag, or words after the year in the file or folder name (so "Uncut Gems" is not UNCUT), movies only, off until you switch it on |
-| Show status | `NEW EPISODE` `SEASON 3 SOON` `RETURNING` `ENDED` | an episode that aired in the last 3, 7 or 14 days (your choice, 7 by default), a season starting in the next 7 days (needs unaired episodes, for example from the TMDb plugin), else the series status, off until you switch it on |
+| Show status | `NEW EPISODE` `SEASON 3 SOON` `RETURNING` `ENDED` | an episode that aired in the last 3, 7 or 14 days (your choice, 7 by default), a season starting in the next 7 days (looked up on TVmaze, or from unaired episodes a plugin such as TMDb adds), else the series status, off until you switch it on |
 | Language | `NL` or `NL SUBS` | audio or subtitles in the language you pick, off until you switch it on |
 | Community rating | `★ 8.4` | the item's community rating |
 | Critic rating | `✓ 93%` | the item's critic rating |
@@ -144,7 +144,6 @@ The **Activity** section on the same page lists what JellyBadge did recently and
 - Badge backdrops or logos. Only the main poster of movies, series, seasons and collections, and the episode thumbnail, is changed.
 - Tell a remux from an encode by the file itself. The Remux badge only shows when the file or its folder has "Remux" in the name.
 - Add custom badges, colors, logos of rating sites, or seasonal and decorative overlays.
-- Show SEASON SOON without upcoming episodes in Jellyfin. See the FAQ below.
 - Detect what Jellyfin does not know. Badges are based on the media info Jellyfin reads from your files, so if Jellyfin does not report Atmos or DTS:X for a file, there is no badge for it.
 - Say which site a rating came from. Jellyfin stores one community rating and one critic rating without a source, so the badges show a neutral star and check mark.
 - Run on Jellyfin 10.x.
@@ -200,7 +199,9 @@ Most likely a library scan, a metadata refresh or an outside tool (a metadata pl
 <details>
 <summary><b>Why does SEASON SOON never show?</b></summary>
 
-Jellyfin only knows about episodes that have not aired yet when a metadata plugin adds them. In **Dashboard > Plugins > TMDb**, tick **Create unaired (upcoming) episodes**, then tick each TV library in the list below it: the option is off by default and works per library. The TheTVDB plugin has a similar option. After the next **Refresh upcoming and missing episodes** task, series with a season starting within 7 days get the badge.
+JellyBadge looks up when the next season starts on TVmaze, once a day per returning show, outside library scans. Only the show's TVDb or IMDb id is sent, and nothing is sent when **Look up season premieres online** is off. TVmaze has to know the show and the premiere date, and the series must have the status Continuing in Jellyfin.
+
+Upcoming episodes in Jellyfin count too. With TVmaze off, tick **Create unaired (upcoming) episodes** in **Dashboard > Plugins > TMDb** and each TV library below it; after the next **Refresh upcoming and missing episodes** task, series with a season starting within 7 days get the badge.
 </details>
 
 <details>

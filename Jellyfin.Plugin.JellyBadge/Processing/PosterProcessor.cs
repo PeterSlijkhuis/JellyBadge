@@ -42,6 +42,7 @@ public sealed class PosterProcessor : IDisposable
     private readonly IServerApplicationPaths _paths;
     private readonly IFileSystem _fileSystem;
     private readonly ILogger<PosterProcessor> _logger;
+    private readonly Premieres _premieres;
     private readonly SemaphoreSlim _gate;
     private readonly int _slots;
     private readonly ConcurrentDictionary<Guid, byte> _busy = new();
@@ -60,13 +61,15 @@ public sealed class PosterProcessor : IDisposable
     /// <param name="providerManager">Provider manager.</param>
     /// <param name="paths">Server paths.</param>
     /// <param name="fileSystem">File system.</param>
+    /// <param name="premieres">Season premieres looked up online.</param>
     /// <param name="logger">Logger.</param>
-    public PosterProcessor(ILibraryManager libraryManager, IProviderManager providerManager, IServerApplicationPaths paths, IFileSystem fileSystem, ILogger<PosterProcessor> logger)
+    public PosterProcessor(ILibraryManager libraryManager, IProviderManager providerManager, IServerApplicationPaths paths, IFileSystem fileSystem, Premieres premieres, ILogger<PosterProcessor> logger)
     {
         _libraryManager = libraryManager;
         _providerManager = providerManager;
         _paths = paths;
         _fileSystem = fileSystem;
+        _premieres = premieres;
         _logger = logger;
 
         // ponytail: limit is read once at startup, a change needs a server restart.
@@ -648,7 +651,10 @@ public sealed class PosterProcessor : IDisposable
             _ => []
         };
         var (count, latest) = children.Aggregate((Count: 0, Latest: 0L), (a, c) => (a.Count + 1, Math.Max(a.Latest, Math.Max(c.DateLastSaved.Ticks, c.DateModified.Ticks))));
-        var day = item is Series && config.ShowStatus ? DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture) : string.Empty;
+        // Announced episodes have no file and do not save the series, so the coming season is part of the key itself.
+        var day = item is Series series && config.ShowStatus
+            ? string.Create(CultureInfo.InvariantCulture, $"{DateTime.UtcNow:yyyyMMdd}:{UpcomingSeason(series)}")
+            : string.Empty;
         return string.Create(CultureInfo.InvariantCulture, $"{RenderVersion}|{_configKey}|{item.DateLastSaved.Ticks}|{item.DateModified.Ticks}|{count}|{latest}|{day}");
     }
 
@@ -788,8 +794,8 @@ public sealed class PosterProcessor : IDisposable
             .ToList();
     }
 
-    // A season whose first episode airs in the coming days. Unaired episodes only exist when a metadata
-    // plugin adds them (TMDb's "unaired episodes" option, for example).
+    // A season whose first episode airs in the coming days: from the unaired episodes a metadata plugin added
+    // (TMDb's "unaired episodes" option, for example), or from TVmaze when nothing added them.
     private int? UpcomingSeason(Series series)
     {
         var now = DateTime.UtcNow;
@@ -804,6 +810,7 @@ public sealed class PosterProcessor : IDisposable
             .OfType<Episode>()
             .Where(e => e.IndexNumber == 1 && e.ParentIndexNumber > 0)
             .Select(e => e.ParentIndexNumber)
+            .Append(Config.LookUpPremieres ? _premieres.Season(series.Id, now, TimeSpan.FromDays(UpcomingDays)) : null)
             .Min();
     }
 

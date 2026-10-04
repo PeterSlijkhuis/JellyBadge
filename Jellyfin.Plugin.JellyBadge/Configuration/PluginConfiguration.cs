@@ -113,6 +113,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets how many days after airing an episode puts NEW EPISODE on its series.</summary>
     public int NewEpisodeDays { get; set; } = 7;
 
+    /// <summary>Gets or sets a value indicating whether season premieres for SEASON n SOON are looked up on TVmaze, besides the upcoming episodes Jellyfin knows of.</summary>
+    public bool LookUpPremieres { get; set; } = true;
+
     /// <summary>Gets or sets a value indicating whether to show a badge for audio or subtitles in <see cref="LanguageCodes"/>.</summary>
     public bool ShowLanguage { get; set; }
 
