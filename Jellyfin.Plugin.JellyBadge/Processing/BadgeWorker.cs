@@ -23,15 +23,6 @@ namespace Jellyfin.Plugin.JellyBadge.Processing;
 /// </summary>
 public sealed class BadgeWorker : BackgroundService
 {
-    // Jellyfin's own tasks that never touch posters or the inputs of a badge. Any other task, including
-    // every plugin task, is followed by a check.
-    private static readonly HashSet<string> _harmlessTasks = new(StringComparer.Ordinal)
-    {
-        "CleanActivityLog", "DeleteTranscodeFiles", "PluginUpdates", "OptimizeDatabaseTask", "CleanLogFiles", "DeleteCacheFiles",
-        "MoveTrickplayImages", "AudioNormalization", "RefreshChapterImages", "TaskExtractMediaSegments", "RefreshTrickplayImages",
-        "DownloadLyrics", "KeyframeExtraction", "RefreshInternetChannels", "RefreshGuide", "RefreshPeople"
-    };
-
     private readonly ILibraryManager _libraryManager;
     private readonly ITaskManager _taskManager;
     private readonly IPluginManager _pluginManager;
@@ -259,11 +250,11 @@ public sealed class BadgeWorker : BackgroundService
         }
     }
 
-    // Scans and metadata plugins can swap posters without an update event we can use. A sweep after
-    // each of them puts the badges back; items that are still fine are skipped without reading the image.
+    // Only after a library scan: item updates and the 5-minute check cover everything else, and a sweep after
+    // every task kept busy servers sweeping every few minutes.
     private void OnTaskCompleted(object? sender, TaskCompletionEventArgs e)
     {
-        if (Plugin.Instance?.Configuration.Enabled == true && e.Task.ScheduledTask is not ApplyBadgesTask && !_harmlessTasks.Contains(e.Task.ScheduledTask.Key))
+        if (Plugin.Instance?.Configuration.Enabled == true && e.Task.ScheduledTask.Key == "RefreshLibrary")
         {
             Activity.Info(_logger, "{Task} finished, checking all posters", e.Task.Name);
             _taskManager.QueueScheduledTask<ApplyBadgesTask>();

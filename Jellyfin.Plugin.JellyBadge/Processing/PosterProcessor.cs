@@ -131,9 +131,9 @@ public sealed class PosterProcessor : IDisposable
     /// </summary>
     /// <param name="item">The item.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <param name="episodeCache">Quality badges per episode, shared during one sweep so each episode is read once.</param>
+    /// <param name="sweep">What one sweep shares between items, so each episode is read once.</param>
     /// <returns>A task.</returns>
-    public async Task ProcessAsync(BaseItem item, CancellationToken cancellationToken, ConcurrentDictionary<Guid, List<Badge>>? episodeCache = null)
+    public async Task ProcessAsync(BaseItem item, CancellationToken cancellationToken, SweepCache? sweep = null)
     {
         if (!Config.Enabled)
         {
@@ -149,7 +149,7 @@ public sealed class PosterProcessor : IDisposable
 
         try
         {
-            await ProcessGatedAsync(item, episodeCache, cancellationToken).ConfigureAwait(false);
+            await ProcessGatedAsync(item, sweep, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -158,7 +158,7 @@ public sealed class PosterProcessor : IDisposable
 
         if (_again.TryRemove(item.Id, out _))
         {
-            await ProcessAsync(item, cancellationToken, episodeCache).ConfigureAwait(false);
+            await ProcessAsync(item, cancellationToken, sweep).ConfigureAwait(false);
         }
     }
 
@@ -237,6 +237,26 @@ public sealed class PosterProcessor : IDisposable
     }
 
     /// <summary>
+    /// The badged poster to offer Jellyfin when a scan or refresh looks for local images, so it keeps that one
+    /// instead of switching to the poster next to the media. Null when Jellyfin should pick as usual: switched off,
+    /// left alone, nothing badged, or the original was replaced since.
+    /// </summary>
+    /// <param name="item">The item.</param>
+    /// <returns>Path of the badged poster, or null.</returns>
+    public string? BadgedPoster(BaseItem item)
+    {
+        if (!Config.Enabled || !IsCandidate(item) || LoadState(item.Id, item) is not { } state
+            || state.OutputHash.Length == 0 || state.OutputHash == state.OriginalHash || state.OriginalPath == state.OutputPath
+            || !File.Exists(state.OutputPath) || File.GetLastWriteTimeUtc(state.OutputPath) != state.OutputModified
+            || !File.Exists(state.OriginalPath) || Hash(File.ReadAllBytes(state.OriginalPath)) != state.OriginalHash)
+        {
+            return null;
+        }
+
+        return state.OutputPath;
+    }
+
+    /// <summary>
     /// Points the item back at its badged poster when a scan or refresh swapped in the original. No drawing and no
     /// waiting for other posters, so the badges are back within moments.
     /// </summary>
@@ -283,7 +303,7 @@ public sealed class PosterProcessor : IDisposable
     private bool LibraryUnknown(BaseItem item)
         => Config.Libraries.Length > 0 && _libraryManager.GetCollectionFolders(item).Count == 0;
 
-    private async Task ProcessGatedAsync(BaseItem item, ConcurrentDictionary<Guid, List<Badge>>? episodeCache, CancellationToken cancellationToken)
+    private async Task ProcessGatedAsync(BaseItem item, SweepCache? sweep, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -296,7 +316,7 @@ public sealed class PosterProcessor : IDisposable
 
             if (IsCandidate(item))
             {
-                await ProcessCoreAsync(item, episodeCache, cancellationToken).ConfigureAwait(false);
+                await ProcessCoreAsync(item, sweep, cancellationToken).ConfigureAwait(false);
             }
             else if (!item.IsVirtualItem && !LibraryUnknown(item) && LoadState(item.Id, item) is { } state)
             {
@@ -410,7 +430,7 @@ public sealed class PosterProcessor : IDisposable
         return restored;
     }
 
-    private async Task ProcessCoreAsync(BaseItem item, ConcurrentDictionary<Guid, List<Badge>>? episodeCache, CancellationToken cancellationToken)
+    private async Task ProcessCoreAsync(BaseItem item, SweepCache? sweep, CancellationToken cancellationToken)
     {
         var config = Config;
         var state = LoadState(item.Id, item);
@@ -423,13 +443,13 @@ public sealed class PosterProcessor : IDisposable
 
         // Nothing about the item, its episodes or the settings changed since last time, and the poster is still ours:
         // done, without reading media info or images. This is what keeps repeat runs fast.
-        var skipKey = SkipKey(item, config);
+        var skipKey = SkipKey(item, config, sweep);
         if (state is not null && state.SkipKey == skipKey && ImageIsAsLeft(item, state))
         {
             return;
         }
 
-        var badges = GetBadges(item, config, episodeCache, out var mediaInfoMissing);
+        var badges = GetBadges(item, config, sweep, out var mediaInfoMissing);
 
         // Media info is briefly gone while Jellyfin scans a file again. Drawing now would drop the quality badges,
         // so keep the badged poster that is there; the regular check comes back once the info is in.
@@ -591,7 +611,7 @@ public sealed class PosterProcessor : IDisposable
 
     // Everything a badge is made from, cheaply: when the item, its file or its episodes were last saved, the settings,
     // and for series with status badges the date, so NEW EPISODE and SEASON SOON follow the calendar.
-    private string SkipKey(BaseItem item, PluginConfiguration config)
+    private string SkipKey(BaseItem item, PluginConfiguration config, SweepCache? sweep = null)
     {
         if (!ReferenceEquals(config, _keyedConfig))
         {
@@ -599,8 +619,10 @@ public sealed class PosterProcessor : IDisposable
             _keyedConfig = config;
         }
 
+        // A sweep already holds every episode, so it skips one database query per series and season.
         IEnumerable<BaseItem> children = item switch
         {
+            Series or Season when sweep is not null => sweep.Children(item.Id),
             Series or Season => _libraryManager.GetItemList(new InternalItemsQuery
             {
                 AncestorIds = [item.Id],
@@ -665,11 +687,11 @@ public sealed class PosterProcessor : IDisposable
         }
     }
 
-    private List<Badge> GetBadges(BaseItem item, PluginConfiguration config, ConcurrentDictionary<Guid, List<Badge>>? episodeCache = null)
-        => GetBadges(item, config, episodeCache, out _);
+    private List<Badge> GetBadges(BaseItem item, PluginConfiguration config, SweepCache? sweep = null)
+        => GetBadges(item, config, sweep, out _);
 
     // mediaInfoMissing: the item has media, but none of it has been scanned (no resolution anywhere).
-    private List<Badge> GetBadges(BaseItem item, PluginConfiguration config, ConcurrentDictionary<Guid, List<Badge>>? episodeCache, out bool mediaInfoMissing)
+    private List<Badge> GetBadges(BaseItem item, PluginConfiguration config, SweepCache? sweep, out bool mediaInfoMissing)
     {
         List<Badge> technical;
         IReadOnlyList<BaseItem> episodes = [];
@@ -684,7 +706,7 @@ public sealed class PosterProcessor : IDisposable
                 IsVirtualItem = false
             });
             technical = BadgeDetector.MostCommon(episodes
-                .Select(e => (IReadOnlyList<Badge>)(episodeCache is null ? Technical(e, config) : episodeCache.GetOrAdd(e.Id, _ => Technical(e, config))))
+                .Select(e => (IReadOnlyList<Badge>)(sweep is null ? Technical(e, config) : sweep.Episodes.GetOrAdd(e.Id, _ => Technical(e, config))))
                 .ToList());
             hasMedia = episodes.Count > 0;
         }
@@ -697,7 +719,7 @@ public sealed class PosterProcessor : IDisposable
         }
         else
         {
-            technical = item is Episode && episodeCache is not null ? episodeCache.GetOrAdd(item.Id, _ => Technical(item, config)) : Technical(item, config);
+            technical = item is Episode && sweep is not null ? sweep.Episodes.GetOrAdd(item.Id, _ => Technical(item, config)) : Technical(item, config);
         }
 
         mediaInfoMissing = hasMedia && !technical.Any(b => b.Kind == BadgeKind.Resolution);
