@@ -648,7 +648,10 @@ public sealed class PosterProcessor : IDisposable
             _ => []
         };
         var (count, latest) = children.Aggregate((Count: 0, Latest: 0L), (a, c) => (a.Count + 1, Math.Max(a.Latest, Math.Max(c.DateLastSaved.Ticks, c.DateModified.Ticks))));
-        var day = item is Series && config.ShowStatus ? DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture) : string.Empty;
+        // Announced episodes have no file and do not save the series, so the coming season is part of the key itself.
+        var day = item is Series series && config.ShowStatus
+            ? string.Create(CultureInfo.InvariantCulture, $"{DateTime.UtcNow:yyyyMMdd}:{UpcomingSeason(series)}")
+            : string.Empty;
         return string.Create(CultureInfo.InvariantCulture, $"{RenderVersion}|{_configKey}|{item.DateLastSaved.Ticks}|{item.DateModified.Ticks}|{count}|{latest}|{day}");
     }
 

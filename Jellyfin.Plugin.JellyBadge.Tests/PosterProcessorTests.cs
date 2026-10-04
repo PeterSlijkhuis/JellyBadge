@@ -310,6 +310,22 @@ public sealed class PosterProcessorTests : IDisposable
     }
 
     [Fact]
+    public async Task AnnouncedSeasonRedrawsTheSeriesTheSameDay()
+    {
+        Plugin.Instance!.Configuration.ShowStatus = true;
+        _item.Status = SeriesStatus.Continuing;
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        // Jellyfin adds the premiere as an episode without a file; the series itself is not saved.
+        var premiere = new Episode { Id = Guid.NewGuid(), IndexNumber = 1, ParentIndexNumber = 2, PremiereDate = DateTime.UtcNow.AddDays(1) };
+        _library.Setup(l => l.GetItemList(It.Is<InternalItemsQuery>(q => q.MinPremiereDate != null))).Returns([premiere]);
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(2, _saves);
+        Assert.Contains("SEASON 2 SOON", Activity.Read()[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SweepSkipsAnUnchangedSeriesWithoutAskingForItsEpisodes()
     {
         var episode = new Episode { Id = Guid.NewGuid() };
