@@ -40,7 +40,8 @@ public static class BadgeRenderer
         var format = codec.EncodedFormat is SKEncodedImageFormat.Png or SKEncodedImageFormat.Webp ? codec.EncodedFormat : SKEncodedImageFormat.Jpeg;
         mimeType = MimeOf(format);
         using var image = surface.Snapshot();
-        using var encoded = image.Encode(format, 92);
+        // 85 keeps posters sharp while staying close to the size of a typical TMDb original; 92 made them about 1.7x larger.
+        using var encoded = image.Encode(format, 85);
         return encoded.ToArray();
     }
 
