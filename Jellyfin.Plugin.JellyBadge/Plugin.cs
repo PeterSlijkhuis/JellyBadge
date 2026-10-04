@@ -59,7 +59,15 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             new PluginPageInfo
             {
                 Name = Name,
-                EmbeddedResourcePath = GetType().Namespace + ".Configuration.configPage.html"
+                EmbeddedResourcePath = GetType().Namespace + ".Configuration.configPage.html",
+                EnableInMainMenu = true,
+                MenuIcon = "new_releases"
+            },
+            new PluginPageInfo
+            {
+                Name = "JellyBadgeActivity",
+                DisplayName = "JellyBadge activity",
+                EmbeddedResourcePath = GetType().Namespace + ".Configuration.activityPage.html"
             }
         ];
     }
