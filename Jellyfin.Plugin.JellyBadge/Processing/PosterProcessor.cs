@@ -225,9 +225,7 @@ public sealed class PosterProcessor : IDisposable
                 continue;
             }
 
-            var info = item.GetImageInfo(ImageType.Primary, 0);
-            if (info is null || info.Path != state.OutputPath || info.DateModified != state.OutputModified
-                || !File.Exists(info.Path) || File.GetLastWriteTimeUtc(info.Path) != state.OutputModified)
+            if (!ImageIsAsLeft(item, state))
             {
                 changed.Add(item);
             }
@@ -605,7 +603,10 @@ public sealed class PosterProcessor : IDisposable
     {
         var info = item.GetImageInfo(ImageType.Primary, 0);
         state.OutputPath = info?.Path ?? string.Empty;
-        state.OutputModified = info?.DateModified ?? default;
+
+        // The file's own timestamp, not the one Jellyfin recorded: a tool that touches the file without changing it
+        // (a backup, a sync, Radarr or Sonarr) leaves those two apart, and the item would be flagged again forever.
+        state.OutputModified = File.Exists(state.OutputPath) ? File.GetLastWriteTimeUtc(state.OutputPath) : default;
 
         // Taken after our own save, which counts as a change of the item too.
         state.SkipKey = SkipKey(item, Config);
@@ -615,7 +616,7 @@ public sealed class PosterProcessor : IDisposable
     private static bool ImageIsAsLeft(BaseItem item, PosterState state)
     {
         var info = item.GetImageInfo(ImageType.Primary, 0);
-        return info is not null && info.Path == state.OutputPath && info.DateModified == state.OutputModified
+        return info is not null && info.Path == state.OutputPath
             && File.Exists(info.Path) && File.GetLastWriteTimeUtc(info.Path) == state.OutputModified;
     }
 

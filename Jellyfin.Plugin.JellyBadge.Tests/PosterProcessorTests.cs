@@ -296,6 +296,20 @@ public sealed class PosterProcessorTests : IDisposable
     }
 
     [Fact]
+    public async Task APosterTouchedOnDiskIsFlaggedOnce()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        // Same bytes, newer timestamp, and Jellyfin still has the old one on record.
+        File.SetLastWriteTimeUtc(CurrentPath(), DateTime.UtcNow.AddMinutes(1));
+        Assert.Single(_processor.FindChanged());
+
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+        Assert.Empty(_processor.FindChanged());
+        Assert.Equal(1, _saves);
+    }
+
+    [Fact]
     public async Task SweepSkipsAnUnchangedSeriesWithoutAskingForItsEpisodes()
     {
         var episode = new Episode { Id = Guid.NewGuid() };
