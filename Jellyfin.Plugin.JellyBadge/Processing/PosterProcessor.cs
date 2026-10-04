@@ -248,9 +248,22 @@ public sealed class PosterProcessor : IDisposable
         if (!Config.Enabled || !IsCandidate(item) || LoadState(item.Id, item) is not { } state
             || state.OutputHash.Length == 0 || state.OutputHash == state.OriginalHash || state.OriginalPath == state.OutputPath
             || !File.Exists(state.OutputPath) || File.GetLastWriteTimeUtc(state.OutputPath) != state.OutputModified
-            || !File.Exists(state.OriginalPath) || Hash(File.ReadAllBytes(state.OriginalPath)) != state.OriginalHash)
+            || !File.Exists(state.OriginalPath))
         {
             return null;
+        }
+
+        // Every scan asks for every item, so only read the original when its timestamp says it may have changed.
+        var modified = File.GetLastWriteTimeUtc(state.OriginalPath);
+        if (modified != state.OriginalModified)
+        {
+            if (Hash(File.ReadAllBytes(state.OriginalPath)) != state.OriginalHash)
+            {
+                return null;
+            }
+
+            state.OriginalModified = modified;
+            SaveState(item.Id, state);
         }
 
         return state.OutputPath;
@@ -941,6 +954,9 @@ public sealed class PosterProcessor : IDisposable
         public string OutputPath { get; set; } = string.Empty;
 
         public DateTime OutputModified { get; set; }
+
+        // The original's timestamp when it last matched OriginalHash.
+        public DateTime OriginalModified { get; set; }
 
         // Every image we ever wrote from this original. Matching any of them means "ours", so an
         // interrupted save can never make us back up a badged poster as if it were the original.

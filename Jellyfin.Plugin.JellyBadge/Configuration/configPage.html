@@ -189,22 +189,12 @@
             #JellyBadgeConfigPage .jb-compare { display: flex; justify-content: space-between; align-items: center; gap: 0.6em; }
             #JellyBadgeConfigPage .jb-caption { font-size: 0.88em; opacity: 0.7; }
 
+            /* Tabs between the settings and the activity page */
+            #JellyBadgeConfigPage .jb-tabs { display: flex; gap: 0.4em; margin: 1em 0 0; }
+            #JellyBadgeConfigPage .jb-tab { padding: 0.6em 1.2em; border-radius: 999px; border: 1px solid var(--jb-line); font: inherit; font-weight: 600; cursor: pointer; background: transparent; color: inherit; opacity: 0.75; }
+            #JellyBadgeConfigPage .jb-tab[aria-current="page"] { background: linear-gradient(135deg, var(--jb-accent-2), var(--jb-accent)); border-color: transparent; color: #fff; opacity: 1; }
+
             /* Danger zone and action bar */
-            #JellyBadgeConfigPage .jb-log { max-height: 22em; overflow-y: auto; border: 1px solid var(--jb-line); border-radius: 10px; font-size: 0.88em; }
-            #JellyBadgeConfigPage .jb-log-row { display: grid; grid-template-columns: auto 1fr; gap: 0.15em 0.8em; padding: 0.55em 0.8em; border-bottom: 1px solid var(--jb-line); }
-            #JellyBadgeConfigPage .jb-log-row:last-child { border-bottom: 0; }
-            #JellyBadgeConfigPage .jb-log-time { opacity: 0.6; white-space: nowrap; font-variant-numeric: tabular-nums; }
-            #JellyBadgeConfigPage .jb-log-msg { overflow-wrap: anywhere; }
-            #JellyBadgeConfigPage .jb-log-row.Warning .jb-log-msg { color: #e0a33a; }
-            #JellyBadgeConfigPage .jb-log-row.Error .jb-log-msg { color: #e05a5a; }
-            #JellyBadgeConfigPage .jb-log-empty { padding: 1em; opacity: 0.6; }
-            #JellyBadgeConfigPage .jb-log.problems .jb-log-row.Info { display: none; }
-            #JellyBadgeConfigPage .jb-no-problems { display: none; }
-            #JellyBadgeConfigPage .jb-log.problems .jb-no-problems { display: block; }
-            #JellyBadgeConfigPage .jb-actions { display: flex; gap: 0.5em; flex: 1 1 300px; justify-content: flex-end; }
-            #JellyBadgeConfigPage .jb-actions .jb-btn { padding-left: 0.9em; padding-right: 0.9em; white-space: nowrap; }
-            @media (max-width: 600px) { #JellyBadgeConfigPage .jb-actions .jb-btn { flex: 1 1 0; } }
-            #JellyBadgeConfigPage .jb-btn[aria-pressed="true"] { border-color: currentColor; font-weight: 600; }
             #JellyBadgeConfigPage .jb-excluded { display: flex; align-items: center; gap: 0.6em; padding: 0.35em 0; }
             #JellyBadgeConfigPage .jb-excluded span { flex: 1; overflow-wrap: anywhere; }
             #JellyBadgeConfigPage .jb-danger { border-color: rgba(220, 70, 70, 0.45); }
@@ -227,6 +217,10 @@
 
         <div data-role="content">
             <div class="content-primary">
+                <nav class="jb-tabs" aria-label="JellyBadge">
+                    <button type="button" class="jb-tab" aria-current="page">Settings</button>
+                    <button type="button" class="jb-tab" data-page="JellyBadgeActivity">Activity</button>
+                </nav>
                 <div class="jb-hero">
                     <div class="jb-logo" aria-hidden="true">4K</div>
                     <div class="jb-hero-text">
@@ -322,19 +316,6 @@
                             </button>
                         </section>
 
-                        <section class="jb-card">
-                            <h2>Activity</h2>
-                            <div class="jb-danger-row" style="margin-bottom:0.8em;">
-                                <p class="jb-hint" style="margin:0;flex:1 1 300px;">What JellyBadge did recently and why, newest first. <b id="jbBadged"></b></p>
-                                <div class="jb-actions">
-                                    <button type="button" class="jb-btn" id="jbProblems" aria-pressed="false">Only problems</button>
-                                    <button type="button" class="jb-btn" id="jbActivityRefresh">Refresh</button>
-                                    <button type="button" class="jb-btn" id="jbActivityClear">Clear</button>
-                                </div>
-                            </div>
-                            <div class="jb-log" id="jbActivity" aria-live="polite"><div class="jb-log-empty">Loading...</div></div>
-                        </section>
-
                         <section class="jb-card jb-danger">
                             <h2>Remove all badges</h2>
                             <div class="jb-danger-row">
@@ -425,22 +406,6 @@
                     }).then(function (r) {
                         if (!r.ok) { throw new Error(r.status); }
                         return r;
-                    });
-                }
-
-                function loadActivity() {
-                    ApiClient.getJSON(ApiClient.getUrl('JellyBadge/Badged')).then(function (count) {
-                        $('jbBadged').textContent = count.toLocaleString() + (count === 1 ? ' poster has badges.' : ' posters have badges.');
-                    }).catch(function () { $('jbBadged').textContent = ''; });
-                    ApiClient.getJSON(ApiClient.getUrl('JellyBadge/Activity')).then(function (lines) {
-                        $('jbActivity').innerHTML = lines.length ? lines.slice(0, 300).map(function (line) {
-                            var parts = line.split('\t');
-                            return '<div class="jb-log-row ' + esc(parts[1]) + '"><span class="jb-log-time">' + esc(parts[0]) +
-                                '</span><span class="jb-log-msg">' + esc(parts.slice(2).join(' ')) + '</span></div>';
-                        }).join('') + (lines.some(function (line) { return /\t(Warning|Error)\t/.test(line); }) ? '' : '<div class="jb-log-empty jb-no-problems">No warnings or errors.</div>')
-                            : '<div class="jb-log-empty">Nothing yet. Badging, restores and errors show up here.</div>';
-                    }).catch(function () {
-                        $('jbActivity').innerHTML = '<div class="jb-log-empty">Could not load the activity.</div>';
                     });
                 }
 
@@ -631,6 +596,11 @@
                 // Clicks, all through one delegated handler.
                 page.addEventListener('click', function (e) {
                     var el = e.target.closest('button');
+                    if (el && el.classList.contains('jb-tab') && el.getAttribute('data-page')) {
+                        if (config && JSON.stringify(config) !== saved && !window.confirm('Leave without saving your changes?')) { return; }
+                        Dashboard.navigate(Dashboard.getPluginUrl(el.getAttribute('data-page')));
+                        return;
+                    }
                     if (!el || !page.contains(el) || !config) { return; }
                     if (el.id === 'jbEnabled') { config.Enabled = !config.Enabled; render(); return; }
                     if (el.classList.contains('jb-tile')) { config[el.getAttribute('data-key')] = !config[el.getAttribute('data-key')]; changed(); return; }
@@ -657,24 +627,6 @@
                     if (el.id === 'jbSave') { save().catch(function () { /* reported or cancelled */ }); return; }
                     if (el.id === 'jbExclude') { if (item) { toggleExcluded(item.Id); } return; }
                     if (el.classList.contains('jb-unexclude')) { toggleExcluded(el.getAttribute('data-id')); return; }
-                    if (el.id === 'jbActivityRefresh') {
-                        loadActivity();
-                        return;
-                    }
-                    if (el.id === 'jbProblems') {
-                        var on = el.getAttribute('aria-pressed') !== 'true';
-                        el.setAttribute('aria-pressed', String(on));
-                        $('jbActivity').classList.toggle('problems', on);
-                        return;
-                    }
-                    if (el.id === 'jbActivityClear') {
-                        if (!window.confirm('Clear the activity list?')) { return; }
-                        fetch(ApiClient.getUrl('JellyBadge/Activity'), {
-                            method: 'DELETE',
-                            headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
-                        }).then(loadActivity);
-                        return;
-                    }
                     if (el.id === 'jbRestore') {
                         if (!window.confirm('Remove all badges, put every original poster back and turn JellyBadge off?')) { return; }
                         Dashboard.showLoadingMsg();
@@ -749,7 +701,6 @@
                 });
 
                 page.addEventListener('pageshow', function () {
-                    loadActivity();
                     Dashboard.showLoadingMsg();
                     Promise.all([ApiClient.getPluginConfiguration(pluginId), ApiClient.getVirtualFolders(), search(''), ApiClient.getCultures()]).then(function (results) {
                         cultures = results[3].filter(function (c) { return c.TwoLetterISOLanguageName; });

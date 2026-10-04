@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JellyBadge activity</title>
+</head>
+<body>
+    <div id="JellyBadgeActivityPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button">
+        <style>
+            /* Same look as the settings page, scoped to this page. */
+            #JellyBadgeActivityPage {
+                --jb-accent: #00a4dc;
+                --jb-accent-2: #aa5cc3;
+                --jb-line: rgba(128, 128, 128, 0.22);
+                --jb-card: rgba(128, 128, 128, 0.07);
+                --jb-radius: 14px;
+            }
+            #JellyBadgeActivityPage .content-primary { max-width: 1240px; padding-bottom: 4em; }
+            #JellyBadgeActivityPage .jb-tabs { display: flex; gap: 0.4em; margin: 1em 0 1.4em; }
+            #JellyBadgeActivityPage .jb-tab { padding: 0.6em 1.2em; border-radius: 999px; border: 1px solid var(--jb-line); font: inherit; font-weight: 600; cursor: pointer; background: transparent; color: inherit; opacity: 0.75; }
+            #JellyBadgeActivityPage .jb-tab[aria-current="page"] { background: linear-gradient(135deg, var(--jb-accent-2), var(--jb-accent)); border-color: transparent; color: #fff; opacity: 1; }
+            #JellyBadgeActivityPage .jb-card { background: var(--jb-card); border: 1px solid var(--jb-line); border-radius: var(--jb-radius); padding: 1.3em 1.4em; }
+            #JellyBadgeActivityPage .jb-card h2 { margin: 0 0 0.25em; font-size: 1.15em; font-weight: 600; }
+            #JellyBadgeActivityPage .jb-hint { margin: 0; opacity: 0.7; font-size: 0.92em; flex: 1 1 300px; }
+            #JellyBadgeActivityPage .jb-row { display: flex; gap: 1em; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 0.8em; }
+            #JellyBadgeActivityPage .jb-actions { display: flex; gap: 0.5em; flex: 1 1 300px; justify-content: flex-end; }
+            #JellyBadgeActivityPage .jb-btn { padding: 0.75em 0.9em; border-radius: 10px; border: 1px solid var(--jb-line); font: inherit; font-weight: 600; cursor: pointer; background: rgba(128, 128, 128, 0.15); color: inherit; white-space: nowrap; }
+            #JellyBadgeActivityPage .jb-btn[aria-pressed="true"] { border-color: currentColor; }
+            @media (max-width: 600px) { #JellyBadgeActivityPage .jb-actions .jb-btn { flex: 1 1 0; } }
+            #JellyBadgeActivityPage button:focus-visible { outline: 2px solid var(--jb-accent); outline-offset: 2px; }
+            #JellyBadgeActivityPage .jb-log { border: 1px solid var(--jb-line); border-radius: 10px; font-size: 0.88em; }
+            #JellyBadgeActivityPage .jb-log-row { display: grid; grid-template-columns: auto 1fr; gap: 0.15em 0.8em; padding: 0.55em 0.8em; border-bottom: 1px solid var(--jb-line); }
+            #JellyBadgeActivityPage .jb-log-row:last-child { border-bottom: 0; }
+            #JellyBadgeActivityPage .jb-log-time { opacity: 0.6; white-space: nowrap; font-variant-numeric: tabular-nums; }
+            #JellyBadgeActivityPage .jb-log-msg { overflow-wrap: anywhere; }
+            #JellyBadgeActivityPage .jb-log-row.Warning .jb-log-msg { color: #e0a33a; }
+            #JellyBadgeActivityPage .jb-log-row.Error .jb-log-msg { color: #e05a5a; }
+            #JellyBadgeActivityPage .jb-log-empty { padding: 1em; opacity: 0.6; }
+            #JellyBadgeActivityPage .jb-log.problems .jb-log-row.Info { display: none; }
+            #JellyBadgeActivityPage .jb-no-problems { display: none; }
+            #JellyBadgeActivityPage .jb-log.problems .jb-no-problems { display: block; }
+            @media (max-width: 600px) { #JellyBadgeActivityPage .jb-log-row { grid-template-columns: 1fr; } }
+        </style>
+
+        <div data-role="content">
+            <div class="content-primary">
+                <nav class="jb-tabs" aria-label="JellyBadge">
+                    <button type="button" class="jb-tab" data-page="JellyBadge">Settings</button>
+                    <button type="button" class="jb-tab" aria-current="page">Activity</button>
+                </nav>
+
+                <section class="jb-card">
+                    <h2>Activity</h2>
+                    <div class="jb-row">
+                        <p class="jb-hint">What JellyBadge did recently and why, newest first. <b id="jbBadged"></b></p>
+                        <div class="jb-actions">
+                            <button type="button" class="jb-btn" id="jbProblems" aria-pressed="false">Only problems</button>
+                            <button type="button" class="jb-btn" id="jbActivityRefresh">Refresh</button>
+                            <button type="button" class="jb-btn" id="jbActivityClear">Clear</button>
+                        </div>
+                    </div>
+                    <div class="jb-log" id="jbActivity" aria-live="polite"><div class="jb-log-empty">Loading...</div></div>
+                </section>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            (function () {
+                var page = document.querySelector('#JellyBadgeActivityPage');
+
+                function $(id) { return page.querySelector('#' + id); }
+
+                function esc(text) {
+                    var div = document.createElement('div');
+                    div.textContent = text == null ? '' : String(text);
+                    return div.innerHTML;
+                }
+
+                function loadActivity() {
+                    ApiClient.getJSON(ApiClient.getUrl('JellyBadge/Badged')).then(function (count) {
+                        $('jbBadged').textContent = count.toLocaleString() + (count === 1 ? ' poster has badges.' : ' posters have badges.');
+                    }).catch(function () { $('jbBadged').textContent = ''; });
+                    ApiClient.getJSON(ApiClient.getUrl('JellyBadge/Activity')).then(function (lines) {
+                        $('jbActivity').innerHTML = lines.length ? lines.map(function (line) {
+                            var parts = line.split('\t');
+                            return '<div class="jb-log-row ' + esc(parts[1]) + '"><span class="jb-log-time">' + esc(parts[0]) +
+                                '</span><span class="jb-log-msg">' + esc(parts.slice(2).join(' ')) + '</span></div>';
+                        }).join('') + (lines.some(function (line) { return /\t(Warning|Error)\t/.test(line); }) ? '' : '<div class="jb-log-empty jb-no-problems">No warnings or errors.</div>')
+                            : '<div class="jb-log-empty">Nothing yet. Badging, restores and errors show up here.</div>';
+                    }).catch(function () {
+                        $('jbActivity').innerHTML = '<div class="jb-log-empty">Could not load the activity.</div>';
+                    });
+                }
+
+                page.addEventListener('click', function (e) {
+                    var el = e.target.closest('button');
+                    if (!el || !page.contains(el)) { return; }
+                    if (el.classList.contains('jb-tab') && el.getAttribute('data-page')) {
+                        Dashboard.navigate(Dashboard.getPluginUrl(el.getAttribute('data-page')));
+                        return;
+                    }
+                    if (el.id === 'jbActivityRefresh') { loadActivity(); return; }
+                    if (el.id === 'jbProblems') {
+                        var on = el.getAttribute('aria-pressed') !== 'true';
+                        el.setAttribute('aria-pressed', String(on));
+                        $('jbActivity').classList.toggle('problems', on);
+                        return;
+                    }
+                    if (el.id === 'jbActivityClear') {
+                        if (!window.confirm('Clear the activity list?')) { return; }
+                        fetch(ApiClient.getUrl('JellyBadge/Activity'), {
+                            method: 'DELETE',
+                            headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+                        }).then(loadActivity);
+                    }
+                });
+
+                page.addEventListener('pageshow', loadActivity);
+            })();
+        </script>
+    </div>
+</body>
+</html>

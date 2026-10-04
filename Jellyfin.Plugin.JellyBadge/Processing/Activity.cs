@@ -13,7 +13,7 @@ namespace Jellyfin.Plugin.JellyBadge.Processing;
 /// </summary>
 public static partial class Activity
 {
-    private const int MaxLines = 1000;
+    private const int MaxLines = 5000;
     private static readonly object _lock = new();
 
     private static string FilePath => Path.Combine(Plugin.Instance!.DataFolderPath, "activity.log");
@@ -83,10 +83,10 @@ public static partial class Activity
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
                 File.AppendAllLines(FilePath, [line]);
 
-                // Trim back to the newest lines once the file passes about 300 KB.
-                if (new FileInfo(FilePath).Length > 300_000)
+                // Trim back to the newest lines once the file passes about 1.5 MB.
+                if (new FileInfo(FilePath).Length > 1_500_000)
                 {
-                    File.WriteAllLines(FilePath, File.ReadAllLines(FilePath)[^MaxLines..]);
+                    File.WriteAllLines(FilePath, File.ReadAllLines(FilePath).TakeLast(MaxLines));
                 }
             }
         }
