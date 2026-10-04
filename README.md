@@ -205,6 +205,12 @@ Upcoming episodes in Jellyfin count too. With TVmaze off, tick **Create unaired 
 </details>
 
 <details>
+<summary><b>Do I need the TMDb missing or unaired episode settings?</b></summary>
+
+No, not with **Look up season premieres online** on. **Create unaired (upcoming) episodes** is then only a fallback for shows TVmaze does not know, and you can leave it off. Keep **Create missing episodes** off unless you want to see gaps in your seasons: it adds and removes an entry for every aired episode you do not have, which can make each library scan many minutes slower. When both are off, the next **Refresh upcoming and missing episodes** task removes the entries they made before.
+</details>
+
+<details>
 <summary><b>Does JellyBadge change files in my media folders?</b></summary>
 
 No. Badged posters are saved in Jellyfin's own metadata folder. Your `poster.jpg` files and other artwork next to your media are never written or deleted, so tools like Kodi, Plex, Sonarr and Radarr never see a badged poster.
