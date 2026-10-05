@@ -342,10 +342,10 @@ public sealed class PosterProcessorTests : IDisposable
 
         // State as an older version could leave it: the original poster on record as the badged one.
         var file = Path.Combine(DataDir, "state", _item.Id.ToString("N") + ".json");
-        var json = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(file))!;
+        var json = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(file, TestContext.Current.CancellationToken))!;
         json["OutputPath"] = _mediaPoster;
         json["OutputModified"] = File.GetLastWriteTimeUtc(_mediaPoster);
-        await File.WriteAllTextAsync(file, json.ToJsonString());
+        await File.WriteAllTextAsync(file, json.ToJsonString(), TestContext.Current.CancellationToken);
         SetPoster(_item, _mediaPoster);
 
         // The 5-minute check comes first after a restart and reads every state at once.
