@@ -618,10 +618,13 @@ public sealed class PosterProcessor : IDisposable
         SaveState(item.Id, state);
     }
 
-    private static bool ImageIsAsLeft(BaseItem item, PosterState state)
+    private bool ImageIsAsLeft(BaseItem item, PosterState state)
     {
+        // A badged poster is only ever saved in Jellyfin's metadata folder. Older versions could record the original
+        // next to the media as the badged one, which left the item bare for good.
         var info = item.GetImageInfo(ImageType.Primary, 0);
         return info is not null && info.Path == state.OutputPath
+            && (state.OutputHash == state.OriginalHash || state.OutputPath.StartsWith(_paths.InternalMetadataPath, StringComparison.OrdinalIgnoreCase))
             && File.Exists(info.Path) && File.GetLastWriteTimeUtc(info.Path) == state.OutputModified;
     }
 
@@ -872,13 +875,6 @@ public sealed class PosterProcessor : IDisposable
 
         if (TryRead(file) is { } state)
         {
-            // Older versions could record the original as the badged poster that way. Only those are read here.
-            if (state.OutputHash != state.OriginalHash && state.OutputPath == state.OriginalPath && File.Exists(state.OutputPath)
-                && Hash(File.ReadAllBytes(state.OutputPath)) != state.OutputHash)
-            {
-                state.OutputPath = string.Empty;
-            }
-
             return _states.GetOrAdd(id, state);
         }
 
