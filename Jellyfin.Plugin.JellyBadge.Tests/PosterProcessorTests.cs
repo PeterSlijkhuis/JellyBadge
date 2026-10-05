@@ -348,8 +348,10 @@ public sealed class PosterProcessorTests : IDisposable
         await File.WriteAllTextAsync(file, json.ToJsonString());
         SetPoster(_item, _mediaPoster);
 
+        // The 5-minute check comes first after a restart and reads every state at once.
         _processor.Dispose();
         _processor = _newProcessor();
+        Assert.Single(_processor.FindChanged());
         await _processor.ProcessAsync(_item, CancellationToken.None);
 
         Assert.Equal(2, _saves);
