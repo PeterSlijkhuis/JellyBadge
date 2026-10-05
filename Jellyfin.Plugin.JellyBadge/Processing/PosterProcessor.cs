@@ -604,8 +604,10 @@ public sealed class PosterProcessor : IDisposable
     // Remember which file and timestamp we left, so later runs can skip this item without reading the image.
     private void MarkDone(BaseItem item, PosterState state)
     {
+        // Only a poster that is ours counts: a scan can swap the original back in while we save, and recording that
+        // as ours would leave the item bare for good. An empty path gets the item checked again.
         var info = item.GetImageInfo(ImageType.Primary, 0);
-        state.OutputPath = info?.Path ?? string.Empty;
+        state.OutputPath = info is not null && File.Exists(info.Path) && Hash(File.ReadAllBytes(info.Path)) == state.OutputHash ? info.Path : string.Empty;
 
         // The file's own timestamp, not the one Jellyfin recorded: a tool that touches the file without changing it
         // (a backup, a sync, Radarr or Sonarr) leaves those two apart, and the item would be flagged again forever.
@@ -870,6 +872,13 @@ public sealed class PosterProcessor : IDisposable
 
         if (TryRead(file) is { } state)
         {
+            // Older versions could record the original as the badged poster that way. Only those are read here.
+            if (state.OutputHash != state.OriginalHash && state.OutputPath == state.OriginalPath && File.Exists(state.OutputPath)
+                && Hash(File.ReadAllBytes(state.OutputPath)) != state.OutputHash)
+            {
+                state.OutputPath = string.Empty;
+            }
+
             return _states.GetOrAdd(id, state);
         }
 

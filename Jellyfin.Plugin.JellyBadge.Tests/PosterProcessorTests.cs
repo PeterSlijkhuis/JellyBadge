@@ -318,6 +318,45 @@ public sealed class PosterProcessorTests : IDisposable
     }
 
     [Fact]
+    public async Task AScanSwappingTheOriginalBackMidSaveDoesNotLeaveThePosterBare()
+    {
+        // The scan points the item back at the poster next to the media right after our save.
+        _providers
+            .Setup(p => p.SaveImage(It.IsAny<BaseItem>(), It.IsAny<string>(), It.IsAny<string>(), ImageType.Primary, 0, false, It.IsAny<CancellationToken>()))
+            .Returns((BaseItem item, string source, string _, ImageType _, int? _, bool? _, CancellationToken _) =>
+            {
+                File.Delete(source);
+                SetPoster(item, _mediaPoster);
+                _saves++;
+                return Task.CompletedTask;
+            });
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Single(_processor.FindChanged());
+    }
+
+    [Fact]
+    public async Task AnOriginalRecordedAsBadgedIsBadgedAgain()
+    {
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        // State as an older version could leave it: the original poster on record as the badged one.
+        var file = Path.Combine(DataDir, "state", _item.Id.ToString("N") + ".json");
+        var json = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(file))!;
+        json["OutputPath"] = _mediaPoster;
+        json["OutputModified"] = File.GetLastWriteTimeUtc(_mediaPoster);
+        await File.WriteAllTextAsync(file, json.ToJsonString());
+        SetPoster(_item, _mediaPoster);
+
+        _processor.Dispose();
+        _processor = _newProcessor();
+        await _processor.ProcessAsync(_item, CancellationToken.None);
+
+        Assert.Equal(2, _saves);
+        Assert.NotEqual(Bytes(_mediaPoster), Bytes(CurrentPath()));
+    }
+
+    [Fact]
     public async Task AnnouncedSeasonRedrawsTheSeriesTheSameDay()
     {
         Plugin.Instance!.Configuration.ShowStatus = true;
